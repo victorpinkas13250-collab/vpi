@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Test connexions</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#faf7f2}h1{font-size:20px}
+.r{border:1px solid #ddd;background:#fff;border-radius:12px;padding:10px 12px;margin:8px 0;font-size:14px;overflow-wrap:anywhere}
+.ok{border-color:#2a9d4a;background:#eefaf1}.ko{border-color:#c0392b;background:#fdf0ee}</style></head><body>
+<h1>🧪 Test des connexions</h1>
+<p style="color:#666;font-size:14px">Adresse : <span id="loc"></span><br>Attends 15 secondes puis fais une capture de toute la page.</p>
+<div id="out"></div>
+<script>
+document.getElementById("loc").textContent=location.href;
+const out=document.getElementById("out");
+function row(n){const d=document.createElement("div");d.className="r";d.textContent="⏳ "+n;out.appendChild(d);return(ok,m)=>{d.className="r "+(ok?"ok":"ko");d.textContent=(ok?"✅ ":"❌ ")+n+" — "+m}}
+const to=ms=>new Promise((_,j)=>setTimeout(()=>j(new Error("délai dépassé")),ms));
+const U="https://itunes.apple.com/search?term=bella+ciao+manu+chao&entity=song&limit=3&media=music&country=fr";
+(async()=>{
+ let prev=null,set=row("1. Recherche Apple (appel direct)");
+ try{const r=await Promise.race([fetch(U),to(8000)]);const j=await r.json();prev=(j.results[0]||{}).previewUrl;set(true,j.resultCount+" résultat(s)")}catch(e){set(false,e.message)}
+ set=row("2. Recherche Apple (balise script)");
+ await new Promise(res=>{window.cbT=j=>{if(!prev)prev=(j.results[0]||{}).previewUrl;set(true,j.resultCount+" résultat(s)");res()};
+  const s=document.createElement("script");s.src=U+"&callback=cbT";s.onerror=()=>{set(false,"script bloqué");res()};document.head.appendChild(s);
+  setTimeout(()=>{set(false,"pas de réponse");res()},8000)});
+ set=row("3. Lecture d'un extrait de 30 s");
+ if(!prev)set(false,"pas de lien d'extrait");
+ else await new Promise(res=>{const a=new Audio(prev);a.oncanplay=()=>{set(true,"l'extrait se charge");res()};a.onerror=()=>{set(false,"audio refusé");res()};a.load();setTimeout(()=>{set(false,"délai dépassé");res()},9000)});
+ const B="https://jsonblob.com/api/jsonBlob",H={"Content-Type":"application/json","Accept":"application/json"};
+ let id=null;set=row("4. Partage : créer une liste");
+ try{const r=await Promise.race([fetch(B,{method:"POST",headers:H,body:JSON.stringify({songs:[],t:1})}),to(9000)]);
+  const loc=r.headers.get("Location")||"";id=(/([0-9a-f]{8,})\/?$/i.exec(loc)||[])[1];
+  set(r.ok&&!!id,"HTTP "+r.status+(id?", code reçu":", mais adresse non lisible (Location absent)"))}catch(e){set(false,e.message)}
+ set=row("5. Partage : relire la liste");
+ if(!id)set(false,"pas de code");else try{const r=await Promise.race([fetch(B+"/"+id,{headers:H}),to(8000)]);const j=await r.json();set(r.ok&&j.t===1,"HTTP "+r.status)}catch(e){set(false,e.message)}
+ set=row("6. Partage : modifier la liste");
+ if(!id)set(false,"pas de code");else try{const r=await Promise.race([fetch(B+"/"+id,{method:"PUT",headers:H,body:JSON.stringify({songs:[],t:2})}),to(8000)]);set(r.ok,"HTTP "+r.status)}catch(e){set(false,e.message)}
+})();
+</script></body></html>
