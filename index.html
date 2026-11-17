@@ -36,6 +36,7 @@ summary{cursor:pointer;font-size:16px}
 #dday .bad{color:var(--bad)}
 .big{width:100%;padding:14px;font-size:16px}
 .small{font-size:13px;color:var(--mute)}
+@media print{body>*:not(#dday){display:none!important}#dday{position:static!important;overflow:visible!important;background:#fff!important}.noprint{display:none!important}}
 code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 </style></head><body>
 
@@ -59,12 +60,15 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 </div>
 
 <div class="row"><button type="button" id="ddbtn">📋 Mode Jour J</button><button type="button" id="copyfiche">Copier pour la fiche DJ</button></div>
+<button type="button" id="exdz" class="big" style="margin:8px 0 0">📤 Exporter pour Deezer (Titre - Artiste)</button>
 <input id="q" type="search" placeholder="🔎 Rechercher dans la liste">
 <button type="button" id="divbtn" class="big" hidden style="margin:6px 0"></button>
 <div id="list"></div>
 
 <details id="chrono"><summary>🕒 Chronologie de la soirée</summary>
   <p class="small">Mets l'heure de début de chaque moment : on compare avec la durée de musique prévue.</p><div id="chrobody"></div></details>
+
+<details id="deadl"><summary>📅 Échéances jusqu'au mariage</summary><div id="deadbody"></div></details>
 
 <details id="share"><summary>🔗 Partage avec Valiha</summary>
   <div id="sharebody"></div></details>
@@ -74,13 +78,13 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
   <textarea id="bkin" rows="3" placeholder="Colle ici une sauvegarde pour restaurer"></textarea>
   <button type="button" id="bkgo" class="big">Restaurer</button></details>
 
-<div id="dday" hidden><button type="button" id="ddclose">✕ Fermer</button><h1>Jour J</h1><div id="ddbody"></div></div>
+<div id="dday" hidden><button type="button" id="ddclose" class="noprint">✕ Fermer</button> <button type="button" id="ddprint" class="noprint">🖨️ Imprimer / PDF</button><h1>Jour J</h1><div id="ddbody"></div></div>
 
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const MOMENTS=["À classer","Cérémonie · Entrée du marié","Cérémonie · Entrée de la mariée","Cérémonie · Alliances","Cérémonie · Signature","Cérémonie · Sortie","Cocktail","Entrée en salle","Dîner","Dessert / pièce montée","Ouverture de bal","Danse avec les parents","Lancé du bouquet","Soirée dansante","Slows","Dernier morceau","À éviter"];
-const TM=MOMENTS.filter(m=>m!=="À classer"&&m!=="À éviter");
+const MOMENTS=["À classer","Cérémonie · Entrée du marié","Cérémonie · Entrée de la mariée","Cérémonie · Alliances","Cérémonie · Signature","Cérémonie · Sortie","Cocktail","Entrée en salle","Dîner","Dessert / pièce montée","Ouverture de bal","Danse avec les parents","Lancé du bouquet","Soirée dansante","Slows","Dernier morceau","Plan B (secours)","À éviter"];
+const TM=MOMENTS.filter(m=>m!=="À classer"&&m!=="À éviter"&&m!=="Plan B (secours)");
 const BLOB="https://jsonblob.com/api/jsonBlob/";
 const HDR={"Content-Type":"application/json","Accept":"application/json"};
 const bad=/remix|karaoke|karaoké|tribute|cover|instrumental|piano version|made famous|in the style/i;
@@ -324,7 +328,7 @@ function render(){
     html+=`<h2><span>${esc(m)}</span><span>${it.length}${tot?" · "+tot:""}</span></h2>`+it.map(card).join("");
   });
   $("list").innerHTML=html||'<div class="msg">Rien pour l\'instant. Tape un titre ci-dessus.</div>';
-  paintChrono();if(!$("dday").hidden)paintDDay();
+  paintChrono();paintDead();if(!$("dday").hidden)paintDDay();
 }
 $("list").onclick=e=>{
   const b=e.target.closest("button[data-a]");if(!b)return;
@@ -349,7 +353,14 @@ function paintChrono(){
   if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#chrobody"))return;
   const T=S.times||{},L=live();
   const rows=TM.map(m=>({m,t:toMin(T[m])})).filter(r=>r.t!=null).sort((a,b)=>a.t-b.t),idx=new Map(rows.map((r,i)=>[r.m,i]));
-  $("chrobody").innerHTML=TM.map((m,k)=>{
+  const endT=toMin(T.end);let gauge="";
+  if(rows.length&&endT!=null&&endT>rows[0].t){
+    const span=endT-rows[0].t,mus=Math.round(L.filter(x=>TM.includes(x.moment)).reduce((a,x)=>a+(x.dur||0),0)/60);
+    const f=m=>Math.floor(m/60)+" h "+String(m%60).padStart(2,"0");
+    gauge='<div class="card" style="margin:8px 0"><b>🎚️ '+f(mus)+' de musique prévue sur '+f(span)+'</b> ('+Math.round(100*mus/span)+' %)'+(mus<span*0.6?'<div class="cst w">Il manque environ '+f(span-mus)+' : ajoute des morceaux ou des durées.</div>':'<div class="cst g">Bonne couverture.</div>')+'</div>';
+  }
+  const endRow='<div class="crow"><label for="tend">Fin de la soirée</label><input type="time" id="tend" data-end="1" value="'+esc(T.end||"")+'"></div>';
+  $("chrobody").innerHTML=gauge+endRow+TM.map((m,k)=>{
     const it=L.filter(x=>x.moment===m),dur=it.reduce((a,x)=>a+(x.dur||0),0),i=idx.get(m);let st="";
     if(i!=null){const nx=rows[i+1],mus=Math.round(dur/60);
       if(!it.length)st='<div class="cst w">Aucun morceau pour ce moment</div>';
@@ -364,8 +375,24 @@ function paintChrono(){
 }
 document.addEventListener("change",e=>{
   const i=e.target.closest&&e.target.closest("#chrobody input");if(!i)return;
-  const k=i.dataset.amb?"amb:"+i.dataset.amb:i.dataset.m;
+  const k=i.dataset.end?"end":i.dataset.amb?"amb:"+i.dataset.amb:i.dataset.m;
   change(()=>{if(!S.times)S.times={};if(i.value.trim())S.times[k]=i.value.trim();else delete S.times[k];S.tUpd=now()});
+});
+
+/* ---------- échéances ---------- */
+const DEAD=[["v","Vote terminé (Victor et Valiha)",60],["l","Liste finale validée",45],["d","Fiche envoyée au DJ",30],["p","Plan B validé",14],["i","Jour J imprimé",7]];
+function paintDead(){
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#deadbody"))return;
+  const T=S.times||{},today=new Date(new Date().toDateString());
+  $("deadbody").innerHTML=DEAD.map(([id,l,n])=>{
+    const dt=new Date(2027,3,30-n),done=!!T["chk:"+id],late=!done&&dt<today;
+    const days=Math.ceil((dt-today)/86400000);
+    return `<label class="crow" style="margin:8px 0"><input type="checkbox" data-chk="${id}" style="width:auto"${done?" checked":""}><span style="flex:1${late?";color:var(--bad)":""}">${esc(l)}<br><span class="small">${dt.toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"})}${done?" · fait":late?" · en retard":days>=0?" · dans "+days+" j":""}</span></span></label>`;
+  }).join("");
+}
+document.addEventListener("change",e=>{
+  const i=e.target.closest&&e.target.closest("#deadbody input");if(!i)return;
+  change(()=>{if(!S.times)S.times={};if(i.checked)S.times["chk:"+i.dataset.chk]="1";else delete S.times["chk:"+i.dataset.chk];S.tUpd=now()});
 });
 
 /* ---------- Jour J ---------- */
@@ -373,6 +400,7 @@ function paintDDay(){
   const T=S.times||{},L=live(),p=[];
   TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
     p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}${T["amb:"+m]?" · ambiance : "+esc(T["amb:"+m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>`).join(""))});
+  const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)p.push('<div class="dm">Plan B (secours)</div>'+pb.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)p.push('<div class="dm">À classer</div>'+nc.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)p.push('<div class="dm bad">🚫 À ne pas jouer</div><div class="bad">'+ev.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join("")+"</div>");
   $("ddbody").innerHTML=p.join("")||'<div class="msg">Rien pour l\'instant.</div>';
@@ -388,10 +416,16 @@ $("copyfiche").onclick=e=>{
   if(stars.length)out.push("INCONTOURNABLES :\n"+stars.map(line).join("\n"));
   TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
     out.push((T[m]?T[m]+" — ":"")+m+(T["amb:"+m]?" (ambiance : "+T["amb:"+m]+")":"")+" :\n"+it.map(x=>line(x)+(x.star?" ⭐":"")).join("\n"))});
+  const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)out.push("PLAN B (si la salle ne suit pas) :\n"+pb.map(line).join("\n"));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)out.push("À classer :\n"+nc.map(line).join("\n"));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)out.push("À NE PAS JOUER :\n"+ev.map(line).join("\n"));
   copyTxt(out.join("\n\n")||"(liste vide)",e.target,"Copier pour la fiche DJ");
 };
+$("exdz").onclick=e=>{
+  const t=live().filter(x=>x.moment!=="À éviter").map(x=>x.title+(x.artist?" - "+x.artist:"")).join("\n");
+  copyTxt(t||"(liste vide)",e.target,"📤 Exporter pour Deezer (Titre - Artiste)");
+};
+$("ddprint").onclick=()=>{paintDDay();window.print()};
 $("bkcopy").onclick=e=>copyTxt(JSON.stringify(S),e.target,"Copier une sauvegarde");
 $("bkgo").onclick=()=>{
   try{const j=JSON.parse($("bkin").value);if(!j||!Array.isArray(j.songs))throw 0;change(()=>{S=mergeState(S,j)});$("note").textContent="Sauvegarde restaurée."}
