@@ -60,6 +60,7 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 
 <div class="row"><button type="button" id="ddbtn">📋 Mode Jour J</button><button type="button" id="copyfiche">Copier pour la fiche DJ</button></div>
 <input id="q" type="search" placeholder="🔎 Rechercher dans la liste">
+<button type="button" id="divbtn" class="big" hidden style="margin:6px 0"></button>
 <div id="list"></div>
 
 <details id="chrono"><summary>🕒 Chronologie de la soirée</summary>
@@ -85,6 +86,7 @@ const HDR={"Content-Type":"application/json","Accept":"application/json"};
 const bad=/remix|karaoke|karaoké|tribute|cover|instrumental|piano version|made famous|in the style/i;
 
 /* ---------- état ---------- */
+let onlyDiv=false;
 let S={songs:[],times:{},tUpd:0},code="",who="Les deux",editing=null,q="",net="off",syncing=false,dirty=false,delId=null;
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -125,6 +127,15 @@ async function ghPut(data,sha){
   if(!r.ok)throw new Error("HTTP "+r.status);
   return true;
 }
+async function weeklyBackup(){
+  try{
+    const day=new Date().toISOString().slice(0,10),last=ld("pm_lastbk","");
+    if(last&&(Date.parse(day)-Date.parse(last))<7*86400000)return;
+    const u=GH.replace("playlist-data.json","playlist-backups/"+day+".json");
+    const r=await fetch(u,{method:"PUT",headers:{...ghH(),"Content-Type":"application/json"},body:JSON.stringify({message:"sauvegarde "+day,content:b64enc(JSON.stringify(S)),branch:"data"})});
+    if(r.ok||r.status===422)sv("pm_lastbk",day);
+  }catch(e){}
+}
 function paintSync(){
   const b=$("sync");
   b.textContent=!token?"⚪ Non partagé":net==="ok"?"🟢 Partagé":net==="busy"?"🔄 Synchro…":"🔴 Hors ligne";
@@ -144,6 +155,7 @@ async function doSync(){
     }
     if(!done)throw new Error("conflit répété");
     dirty=false;net="ok";
+    weeklyBackup();
   }catch(e){net="err";$("note").textContent="Synchro impossible : "+e.message}
   syncing=false;paintSync();
 }
@@ -270,17 +282,25 @@ try{const m=localStorage.getItem("pm_moment");if(m&&MOMENTS.includes(m))sel.valu
 sel.onchange=()=>{try{localStorage.setItem("pm_moment",sel.value)}catch(e){}};
 function paintWho(){document.querySelectorAll("#who button").forEach(b=>b.classList.toggle("on",b.dataset.w===who))}
 document.querySelectorAll("#who button").forEach(b=>b.onclick=()=>{who=b.dataset.w;sv("pm_who",who);paintWho()});paintWho();
+$("divbtn").onclick=()=>{onlyDiv=!onlyDiv;render()};
 $("q").oninput=()=>{q=$("q").value.trim().toLowerCase();render()};
 
 /* ---------- liste ---------- */
 function fmtDur(s){s=Math.round(s||0);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 function fmtTot(s){if(!s)return"";const m=Math.round(s/60);return m>=60?Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"):m+" min"}
+const EM=v=>v===1?"👍":v===0?"😐":v===-1?"👎":"–";
+function voteInfo(x){
+  const v=x.v||{},a=v.Victor,b=v.Valiha;
+  let badge="";
+  if(a!=null&&b!=null){if(a===1&&b===1)badge=" 💞 d'accord";else if(Math.abs(a-b)>=2)badge=" ⚠️ divergence";else if(a===-1&&b===-1)badge=" 🚫 vous n'aimez pas"}
+  return {line:"Victor "+EM(a)+" · Valiha "+EM(b)+badge,div:a!=null&&b!=null&&Math.abs(a-b)>=2};
+}
 function card(x){
   if(x.id===editing)return editHTML(x);
   const heart=(x.lv&&x.ln)?"💞 ":x.lv?"💙 ":x.ln?"💗 ":"";
   const dz="https://www.deezer.com/search/"+encodeURIComponent((x.title+" "+(x.artist||"")).trim());
   return `<div class="song${x.status==="ok"?" okk":""}" data-id="${esc(x.id)}"><div class="t">${x.star?"⭐ ":""}${heart}${esc(x.title)}${x.by?`<span class="tag">${esc(x.by)}</span>`:""}</div><div class="a">${esc(x.artist||"")}${x.dur?" · "+fmtDur(x.dur):""}</div>${x.note?`<span class="nt">${esc(x.note)}</span>`:""}
-  <div class="acts"><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a></div></div>`;
+  <div class="small" style="margin-top:6px">${voteInfo(x).line}</div><div class="acts"><button data-a="vote" data-val="1" data-id="${esc(x.id)}">👍</button><button data-a="vote" data-val="0" data-id="${esc(x.id)}">😐</button><button data-a="vote" data-val="-1" data-id="${esc(x.id)}">👎</button><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a></div></div>`;
 }
 function editHTML(x){
   return `<div class="song" data-id="${esc(x.id)}"><input id="e_t" value="${esc(x.title)}" placeholder="Titre"><input id="e_a" value="${esc(x.artist||"")}" placeholder="Artiste"><input id="e_l" value="${esc(x.link||"")}" placeholder="Lien (facultatif)"><input id="e_n" value="${esc(x.note||"")}" placeholder="Note (ex. version live)">
@@ -294,9 +314,11 @@ function render(){
   const d=Math.ceil((new Date(2027,3,30)-new Date(new Date().toDateString()))/86400000);
   const fait=TM.filter(m=>L.some(x=>x.moment===m)).length;
   $("cd").textContent="🗓️ "+(d>0?"J-"+d+" · 30 avril 2027":d===0?"C'est aujourd'hui !":"Mariage passé")+" · "+fait+"/"+TM.length+" moments remplis";
+  const nd=L.filter(x=>voteInfo(x).div).length;
+  $("divbtn").hidden=!nd&&!onlyDiv;$("divbtn").textContent=onlyDiv?"Voir toute la liste":"⚠️ Voir les divergences ("+nd+")";
   let html="";
   MOMENTS.forEach(m=>{
-    const it=L.filter(x=>x.moment===m&&(!q||((x.title||"")+" "+(x.artist||"")+" "+(x.note||"")).toLowerCase().includes(q)));
+    const it=L.filter(x=>x.moment===m&&(!onlyDiv||voteInfo(x).div)&&(!q||((x.title||"")+" "+(x.artist||"")+" "+(x.note||"")).toLowerCase().includes(q)));
     if(!it.length)return;
     const tot=fmtTot(it.reduce((a,x)=>a+(x.dur||0),0));
     html+=`<h2><span>${esc(m)}</span><span>${it.length}${tot?" · "+tot:""}</span></h2>`+it.map(card).join("");
@@ -307,7 +329,12 @@ function render(){
 $("list").onclick=e=>{
   const b=e.target.closest("button[data-a]");if(!b)return;
   const id=b.dataset.id,a=b.dataset.a,x=S.songs.find(s=>s.id===id);
-  if(a==="play"&&x){playIn(b.closest(".song"),x.prev)}
+  if(a==="vote"&&x){
+    const me=(who==="Victor"||who==="Valiha")?who:"";
+    if(!me){$("note").textContent="Pour voter, choisis d'abord Victor ou Valiha dans le formulaire du haut.";window.scrollTo({top:0,behavior:"smooth"});return}
+    change(()=>{x.v=Object.assign({},x.v);const val=+b.dataset.val;if(x.v[me]===val)delete x.v[me];else x.v[me]=val;touch(x)});
+  }
+  else if(a==="play"&&x){playIn(b.closest(".song"),x.prev)}
   else if(a==="find"&&x){$("title").value=x.title;$("artist").value=x.artist||"";window.scrollTo({top:0,behavior:"smooth"});runSearch((x.title+" "+(x.artist||"")).trim())}
   else if(a==="ok"&&x){change(()=>{x.status=x.status==="ok"?"":"ok";touch(x)})}
   else if(a==="ed"){editing=id;delId=null;render()}
@@ -332,19 +359,20 @@ function paintChrono(){
         else if(mus<dp*.6)st='<div class="cst w">Il manque environ '+(dp-mus)+" min ("+mus+" sur "+dp+")</div>";
         else st='<div class="cst g">✅ '+mus+" min pour "+dp+" min</div>"}
       else st='<div class="cst">'+mus+" min de musique prévue</div>"}
-    return `<div class="crow"><label for="t${k}">${esc(m)}</label><input type="time" id="t${k}" data-m="${esc(m)}" value="${esc(T[m]||"")}"></div>${st}`;
+    return `<div class="crow"><label for="t${k}">${esc(m)}</label><input type="time" id="t${k}" data-m="${esc(m)}" value="${esc(T[m]||"")}"></div><input type="text" data-amb="${esc(m)}" placeholder="Ambiance voulue (ex. calme, festive)" value="${esc(T["amb:"+m]||"")}" style="margin:0 0 4px;padding:8px;font-size:14px">${st}`;
   }).join("");
 }
 document.addEventListener("change",e=>{
   const i=e.target.closest&&e.target.closest("#chrobody input");if(!i)return;
-  change(()=>{if(!S.times)S.times={};if(i.value)S.times[i.dataset.m]=i.value;else delete S.times[i.dataset.m];S.tUpd=now()});
+  const k=i.dataset.amb?"amb:"+i.dataset.amb:i.dataset.m;
+  change(()=>{if(!S.times)S.times={};if(i.value.trim())S.times[k]=i.value.trim();else delete S.times[k];S.tUpd=now()});
 });
 
 /* ---------- Jour J ---------- */
 function paintDDay(){
   const T=S.times||{},L=live(),p=[];
   TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
-    p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>`).join(""))});
+    p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}${T["amb:"+m]?" · ambiance : "+esc(T["amb:"+m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>`).join(""))});
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)p.push('<div class="dm">À classer</div>'+nc.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)p.push('<div class="dm bad">🚫 À ne pas jouer</div><div class="bad">'+ev.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join("")+"</div>");
   $("ddbody").innerHTML=p.join("")||'<div class="msg">Rien pour l\'instant.</div>';
@@ -355,8 +383,13 @@ $("ddbtn").onclick=()=>{paintDDay();$("dday").hidden=false};$("ddclose").onclick
 async function copyTxt(t,btn,label){try{await navigator.clipboard.writeText(t);if(btn){btn.textContent="Copié ✓";setTimeout(()=>btn.textContent=label,2000)}}catch(e){prompt("Copie :",t)}}
 $("copyfiche").onclick=e=>{
   const T=S.times||{},L=live(),out=[];
-  TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(it.length)out.push((T[m]?T[m]+" — ":"")+m+" :\n"+it.map(x=>"- "+x.title+(x.artist?" — "+x.artist:"")+(x.star?" (incontournable)":"")).join("\n"))});
-  const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)out.push("À ne pas jouer :\n"+ev.map(x=>"- "+x.title+(x.artist?" — "+x.artist:"")).join("\n"));
+  const line=x=>"- "+x.title+(x.artist?" — "+x.artist:"");
+  const stars=L.filter(x=>x.star&&x.moment!=="À éviter");
+  if(stars.length)out.push("INCONTOURNABLES :\n"+stars.map(line).join("\n"));
+  TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
+    out.push((T[m]?T[m]+" — ":"")+m+(T["amb:"+m]?" (ambiance : "+T["amb:"+m]+")":"")+" :\n"+it.map(x=>line(x)+(x.star?" ⭐":"")).join("\n"))});
+  const nc=L.filter(x=>x.moment==="À classer");if(nc.length)out.push("À classer :\n"+nc.map(line).join("\n"));
+  const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)out.push("À NE PAS JOUER :\n"+ev.map(line).join("\n"));
   copyTxt(out.join("\n\n")||"(liste vide)",e.target,"Copier pour la fiche DJ");
 };
 $("bkcopy").onclick=e=>copyTxt(JSON.stringify(S),e.target,"Copier une sauvegarde");
