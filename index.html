@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playlist du mariage</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--line:#e3ddd3;--mute:#7a7266;--acc:#b4573e;--ok:#2a7d46;--bad:#b3261e}
+*{box-sizing:border-box}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:#222;margin:0;padding:14px 14px 90px;max-width:600px;margin:0 auto}
+h1{font-size:22px;margin:0}
+.sub{color:var(--mute);font-size:14px;margin:2px 0}
+input,select,textarea{font-size:16px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);width:100%;margin:5px 0;font-family:inherit}
+button{font-family:inherit;font-size:15px;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--card);color:#222;cursor:pointer}
+button.p{background:var(--acc);color:#fff;border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin:12px 0}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1;min-width:0}
+.row>button{flex:0 0 auto}
+.who{display:flex;gap:6px;margin:6px 0}.who button{flex:1;padding:10px 4px}.who button.on{background:#f3e0da;border-color:var(--acc)}
+#sync{float:right;font-size:13px;padding:6px 10px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:20px 0 6px;display:flex;justify-content:space-between}
+.song{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:6px 0}
+.song .t{font-weight:600;overflow-wrap:anywhere}.song .a{color:var(--mute);font-size:14px;overflow-wrap:anywhere}
+.song .nt{display:block;font-size:13px;font-style:italic;color:var(--mute)}
+.tag{font-size:12px;border-radius:8px;padding:2px 7px;background:#eee;margin-left:4px}
+.acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.acts button,.acts a{padding:8px 10px;font-size:16px;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.song.okk{border-color:var(--ok)}
+audio{width:100%;margin-top:8px}
+.msg{font-size:14px;color:var(--mute);margin:6px 0}.warn{color:var(--bad);font-size:14px;margin:4px 0}
+details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:10px 0}
+summary{cursor:pointer;font-size:16px}
+.mini{font-size:14px;padding:8px 10px;margin:4px 6px 0 0}
+.cst{font-size:13px;color:var(--mute);margin:-2px 0 6px}.cst.w{color:var(--bad)}.cst.g{color:var(--ok)}
+.crow{display:flex;gap:8px;align-items:center;font-size:14px}.crow label{flex:1}.crow input{width:120px;margin:3px 0}
+#dday{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:16px;z-index:50}
+#dday .dm{margin:18px 0 6px;font-size:14px;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);padding-bottom:4px}
+#dday .ds{font-size:22px;font-weight:600;margin-top:8px;overflow-wrap:anywhere}#dday .da{color:var(--mute)}
+#dday .bad{color:var(--bad)}
+.big{width:100%;padding:14px;font-size:16px}
+.small{font-size:13px;color:var(--mute)}
+code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
+</style></head><body>
+
+<div id="ban" class="warn" hidden style="background:#fdf0ee;border:1px solid var(--bad);border-radius:12px;padding:10px;margin:0 0 10px"></div>
+<button id="sync" type="button">⚪ Non partagé</button>
+<h1>🎶 Playlist du mariage</h1>
+<div class="sub">Victor &amp; Valiha · <span id="count"></span></div>
+<div class="sub" id="cd"></div>
+
+<div class="card">
+  <button type="button" id="paste" class="big">📋 Coller depuis Shazam</button>
+  <input id="title" placeholder="Titre du morceau" autocomplete="off">
+  <input id="artist" placeholder="Artiste (facultatif)" autocomplete="off">
+  <div id="dup" class="warn"></div>
+  <button type="button" id="search" class="p big">🎧 Écouter / chercher</button>
+  <div id="results"></div>
+  <select id="moment"></select>
+  <div class="who" id="who"><button type="button" data-w="Victor">Victor</button><button type="button" data-w="Valiha">Valiha</button><button type="button" data-w="Les deux">Les deux</button><button type="button" data-w="Invité">Invité</button></div>
+  <button type="button" id="addraw" class="big">Ajouter sans extrait</button>
+  <div id="note" class="msg"></div>
+</div>
+
+<div class="row"><button type="button" id="ddbtn">📋 Mode Jour J</button><button type="button" id="copyfiche">Copier pour la fiche DJ</button></div>
+<input id="q" type="search" placeholder="🔎 Rechercher dans la liste">
+<div id="list"></div>
+
+<details id="chrono"><summary>🕒 Chronologie de la soirée</summary>
+  <p class="small">Mets l'heure de début de chaque moment : on compare avec la durée de musique prévue.</p><div id="chrobody"></div></details>
+
+<details id="share"><summary>🔗 Partage avec Valiha</summary>
+  <div id="sharebody"></div></details>
+
+<details><summary>Sauvegarde et restauration</summary>
+  <button type="button" id="bkcopy" class="big">Copier une sauvegarde</button>
+  <textarea id="bkin" rows="3" placeholder="Colle ici une sauvegarde pour restaurer"></textarea>
+  <button type="button" id="bkgo" class="big">Restaurer</button></details>
+
+<div id="dday" hidden><button type="button" id="ddclose">✕ Fermer</button><h1>Jour J</h1><div id="ddbody"></div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const MOMENTS=["À classer","Cérémonie · Entrée du marié","Cérémonie · Entrée de la mariée","Cérémonie · Alliances","Cérémonie · Signature","Cérémonie · Sortie","Cocktail","Entrée en salle","Dîner","Dessert / pièce montée","Ouverture de bal","Danse avec les parents","Lancé du bouquet","Soirée dansante","Slows","Dernier morceau","À éviter"];
+const TM=MOMENTS.filter(m=>m!=="À classer"&&m!=="À éviter");
+const BLOB="https://jsonblob.com/api/jsonBlob/";
+const HDR={"Content-Type":"application/json","Accept":"application/json"};
+const bad=/remix|karaoke|karaoké|tribute|cover|instrumental|piano version|made famous|in the style/i;
+
+/* ---------- état ---------- */
+let S={songs:[],times:{},tUpd:0},code="",who="Les deux",editing=null,q="",net="off",syncing=false,dirty=false,delId=null;
+function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+S=ld("pm_state",S);code=ld("pm_code","");who=ld("pm_who",who);
+const live=()=>S.songs.filter(x=>!x.del);
+const now=()=>Date.now();
+function newId(){return "s"+now().toString(36)+Math.random().toString(36).slice(2,6)}
+function persist(){sv("pm_state",S);sv("pm_code",code)}
+function mergeState(a,b){
+  const m=new Map();
+  [...(a.songs||[]),...(b.songs||[])].forEach(x=>{const o=m.get(x.id);if(!o||(x.upd||0)>(o.upd||0))m.set(x.id,x)});
+  const t=(b.tUpd||0)>(a.tUpd||0)?b:a;
+  return {songs:[...m.values()].sort((x,y)=>(x.ts||0)-(y.ts||0)),times:t.times||{},tUpd:Math.max(a.tUpd||0,b.tUpd||0)};
+}
+const sig=s=>JSON.stringify({s:s.songs.map(x=>[x.id,x.upd]).sort(),t:s.tUpd});
+function touch(x){x.upd=now();return x}
+function change(fn){fn();persist();render();dirty=true;doSync()}
+
+/* ---------- partage (jsonblob) ---------- */
+function paintSync(){
+  const b=$("sync");
+  b.textContent=!code?"⚪ Non partagé":net==="ok"?"🟢 Partagé":net==="busy"?"🔄 Synchro…":"🔴 Hors ligne";
+}
+async function doSync(){
+  if(!code||syncing)return;syncing=true;net="busy";paintSync();
+  try{
+    const r=await fetch(BLOB+code,{headers:HDR});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const remote=await r.json();
+    const merged=mergeState(S,remote);
+    const changedLocal=sig(merged)!==sig(S);
+    const changedRemote=sig(merged)!==sig(remote);
+    S=merged;persist();
+    if(changedRemote||dirty){
+      const p=await fetch(BLOB+code,{method:"PUT",headers:HDR,body:JSON.stringify(S)});
+      if(!p.ok)throw new Error("HTTP "+p.status);
+    }
+    dirty=false;net="ok";
+    if(changedLocal)render();
+  }catch(e){net="err";$("note").textContent="Synchro impossible : "+e.message}
+  syncing=false;paintSync();
+}
+function codeFrom(t){const m=/([0-9a-f]{8,})\/?\s*$/i.exec((t||"").trim());return m?m[1]:""}
+function paintShare(){
+  const box=$("sharebody");
+  let h='<p class="small"><b>Échange manuel (marche toujours)</b> : chacun envoie sa liste à l\'autre, elles se fusionnent sans rien perdre, suppressions comprises.</p><button type="button" class="p big" id="mout">📤 Envoyer ma liste à Valiha</button><button type="button" class="big" id="min" style="margin-top:8px">📥 Recevoir la liste de Valiha</button><textarea id="mtxt" rows="3" placeholder="Si le bouton Recevoir ne marche pas, colle la liste ici" hidden></textarea><button type="button" class="big" id="mgo" hidden>Fusionner</button><div id="mmsg" class="msg"></div><hr style="border:0;border-top:1px solid var(--line);margin:14px 0">';
+  if(code){
+    h+='<p class="small">Partage automatique actif. Code pour Valiha : <code>'+esc(code)+'</code></p><button type="button" id="unlink" class="mini">Se déconnecter du partage automatique</button>';
+  }else{
+    h+='<details><summary class="small">Partage automatique (si ton téléphone l\'accepte)</summary><button type="button" class="big" id="mk">Créer la liste partagée</button><input id="jc" placeholder="Code reçu (pour rejoindre)"><button type="button" class="big" id="jn">Rejoindre avec ce code</button><div id="shmsg" class="msg"></div></details>';
+  }
+  box.innerHTML=h;
+  const mm=t=>{$("mmsg").textContent=t};
+  $("mout").onclick=async()=>{
+    const txt=JSON.stringify(S);
+    try{if(navigator.share){await navigator.share({title:"Playlist mariage",text:txt});mm("Envoyé.");return}}catch(e){if(e&&e.name==="AbortError")return}
+    try{await navigator.clipboard.writeText(txt);mm("Liste copiée : colle-la dans un message à Valiha.")}catch(e){$("mtxt").hidden=false;$("mtxt").value=txt;$("mtxt").select();mm("Copie le texte ci-dessus et envoie-le.")}
+  };
+  const merge=t=>{
+    try{const m=/\{[\s\S]*\}/.exec(t);const j=JSON.parse(m?m[0]:t);if(!j||!Array.isArray(j.songs))throw 0;
+      const before=live().length;change(()=>{S=mergeState(S,j)});mm("Fusionné : "+live().length+" morceau(x) maintenant (avant : "+before+").");$("mtxt").hidden=true;$("mgo").hidden=true;$("mtxt").value=""}
+    catch(e){mm("Ce n'est pas une liste valide.")}
+  };
+  $("min").onclick=async()=>{
+    let t="";try{t=await navigator.clipboard.readText()}catch(e){}
+    if(t&&/"songs"/.test(t)){merge(t);return}
+    $("mtxt").hidden=false;$("mgo").hidden=false;mm("Colle la liste de Valiha dans la case, puis touche Fusionner.")
+  };
+  $("mgo").onclick=()=>merge($("mtxt").value);
+  if(code){$("unlink").onclick=()=>{code="";persist();net="off";paintSync();paintShare()};return}
+  $("mk").onclick=async()=>{
+    $("shmsg").textContent="Création…";
+    try{
+      const r=await fetch(BLOB.slice(0,-1),{method:"POST",headers:HDR,body:JSON.stringify(S)});
+      const c=codeFrom(r.headers.get("Location")||r.headers.get("location")||"");
+      if(!r.ok||!c)throw new Error("adresse non reçue");
+      code=c;persist();dirty=true;paintShare();doSync();
+    }catch(e){$("shmsg").textContent="Bloqué sur ce téléphone ("+e.message+"). Utilise l'échange manuel ci-dessus."}
+  };
+  $("jn").onclick=async()=>{const c=codeFrom($("jc").value);if(!c){$("shmsg").textContent="Code non reconnu.";return}code=c;persist();dirty=true;paintShare();await doSync()};
+}
+$("sync").onclick=()=>{$("share").open=true;$("share").scrollIntoView({behavior:"smooth"});doSync()};
+setInterval(doSync,10000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)doSync()});
+
+/* ---------- recherche iTunes + extraits ---------- */
+let curAudio=null;
+function norm(t){return (t||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g," ").trim()}
+function findDup(t,a){const nt=norm(t),na=norm(a);if(!nt)return null;return live().find(x=>{if(norm(x.title)!==nt)return false;const xa=norm(x.artist);return !na||!xa||xa===na||xa.includes(na)||na.includes(xa)})||null}
+function jsonp(url){
+  return new Promise((res,rej)=>{
+    const cb="cb"+Math.random().toString(36).slice(2),sc=document.createElement("script");
+    const end=()=>{try{delete window[cb]}catch(e){window[cb]=undefined}sc.remove()};
+    const tm=setTimeout(()=>{end();rej(new Error("pas de réponse"))},9000);
+    window[cb]=j=>{clearTimeout(tm);end();res(j)};
+    sc.onerror=()=>{clearTimeout(tm);end();rej(new Error("script bloqué"))};
+    sc.src=url+"&callback="+cb;document.head.appendChild(sc);
+  });
+}
+async function itunes(term){
+  const u="https://itunes.apple.com/search?term="+encodeURIComponent(term)+"&entity=song&limit=15&media=music&country=fr";
+  let j;
+  try{const r=await fetch(u);j=await r.json()}
+  catch(e){j=await jsonp(u)}
+  let l=(j.results||[]).filter(x=>x.previewUrl);
+  const clean=l.filter(x=>!bad.test(x.trackName+" "+x.artistName+" "+(x.collectionName||"")));
+  return (clean.length&&!bad.test(term)?clean:l).slice(0,8);
+}
+function playIn(box,url){
+  document.querySelectorAll("audio").forEach(a=>a.pause());
+  let a=box.querySelector("audio");if(!a){a=document.createElement("audio");a.controls=true;box.appendChild(a)}
+  a.src=url;a.play().catch(e=>{$("note").textContent="Lecture refusée : "+e.name});
+}
+async function runSearch(term){
+  $("results").innerHTML="";$("note").textContent="Recherche…";
+  try{
+    const l=await itunes(term);
+    if(!l.length){$("note").textContent="Aucun extrait trouvé. Ajoute l'artiste.";return}
+    $("note").textContent=l.length+" résultat(s) : ▶️ pour écouter, ➕ pour ajouter.";
+    l.forEach(x=>{
+      const d=document.createElement("div");d.className="song";
+      d.innerHTML='<div class="t"></div><div class="a"></div><div class="acts"><button data-p>▶️ 30 s</button><button data-a class="p">➕ Ajouter</button></div>';
+      d.querySelector(".t").textContent=x.trackName;d.querySelector(".a").textContent=x.artistName+(x.collectionName?" · "+x.collectionName:"");
+      d.querySelector("[data-p]").onclick=()=>playIn(d,x.previewUrl);
+      d.querySelector("[data-a]").onclick=()=>{
+        addSong({title:x.trackName,artist:x.artistName,prev:x.previewUrl,dur:Math.round((x.trackTimeMillis||0)/1000)||0});
+        $("results").innerHTML="";$("title").value="";$("artist").value="";$("dup").textContent="";
+        $("note").textContent="Ajouté : "+x.trackName;
+      };
+      $("results").appendChild(d);
+    });
+  }catch(e){$("note").textContent="Recherche impossible ("+e.message+"). Origine de la page : "+location.protocol+"//"+(location.hostname||"fichier")+". Essaie d'ouvrir le fichier avec l'adresse file:///storage/emulated/0/Download/playlist-complete.html dans Chrome."}
+}
+$("search").onclick=()=>{const t=($("title").value+" "+$("artist").value).trim();if(!t){$("note").textContent="Tape un titre.";return}runSearch(t)};
+function checkDup(){const d=findDup($("title").value,$("artist").value);$("dup").textContent=d?"⚠️ Déjà dans la liste ("+d.moment+")":""}
+$("title").oninput=()=>{checkShared();checkDup()};$("artist").oninput=checkDup;
+
+/* ---------- coller depuis Shazam ---------- */
+function parseShared(t){
+  t=(t||"").replace(/https?:\/\/\S+/g," ").replace(/\s+/g," ").trim();if(t.length<12)return null;
+  let m=/[«“"]\s*([^»”"]{1,120}?)\s*[»”"]\s+(?:de|par|by)\s+(.{1,100}?)(?:\s+(?:avec|on|sur|via|with)\s+Shazam.*|[.!]\s.*|[.!]?$)/i.exec(t);
+  if(m)return{title:m[1].trim(),artist:m[2].replace(/[.!]+$/,"").trim()};
+  m=/^(?:.*?(?:trouvé|découvert|found|discovered)\s+)?(.{2,80}?)\s+(?:de|by)\s+(.{2,80}?)(?:\s+(?:avec|on|with)\s+Shazam.*)?$/i.exec(t);
+  if(m&&/shazam/i.test(t))return{title:m[1].replace(/^[«“"']|[»”"']$/g,"").trim(),artist:m[2].replace(/[.!]+$/,"").trim()};
+  return null;
+}
+function checkShared(){const v=$("title").value;if(v.length<12)return;const r=parseShared(v);if(r&&r.title){$("title").value=r.title;if(r.artist)$("artist").value=r.artist;$("note").textContent="Rempli depuis le texte collé."}}
+$("paste").onclick=async()=>{
+  let t="";try{t=await navigator.clipboard.readText()}catch(e){$("note").textContent="Presse-papier inaccessible : appuie longuement dans « Titre » puis Coller.";$("title").focus();return}
+  if(!t.trim()){$("note").textContent="Presse-papier vide.";return}
+  const r=parseShared(t);
+  if(r){$("title").value=r.title;$("artist").value=r.artist||""}else{$("title").value=t.replace(/https?:\/\/\S+/g," ").replace(/\s+/g," ").trim().slice(0,120)}
+  checkDup();runSearch(($("title").value+" "+$("artist").value).trim());
+};
+
+/* ---------- ajout / actions ---------- */
+function addSong(o){
+  change(()=>{S.songs.push(touch({id:newId(),title:o.title,artist:o.artist||"",link:o.link||"",note:o.note||"",moment:$("moment").value,by:who,prev:o.prev||"",dur:o.dur||0,ts:now()}))});
+}
+$("addraw").onclick=()=>{
+  const t=$("title").value.trim();if(!t){$("note").textContent="Tape un titre.";return}
+  addSong({title:t,artist:$("artist").value.trim()});$("title").value="";$("artist").value="";$("results").innerHTML="";$("dup").textContent="";$("note").textContent="Ajouté : "+t;
+};
+const sel=$("moment");MOMENTS.forEach(m=>{const o=document.createElement("option");o.value=o.textContent=m;sel.appendChild(o)});
+try{const m=localStorage.getItem("pm_moment");if(m&&MOMENTS.includes(m))sel.value=m}catch(e){}
+sel.onchange=()=>{try{localStorage.setItem("pm_moment",sel.value)}catch(e){}};
+function paintWho(){document.querySelectorAll("#who button").forEach(b=>b.classList.toggle("on",b.dataset.w===who))}
+document.querySelectorAll("#who button").forEach(b=>b.onclick=()=>{who=b.dataset.w;sv("pm_who",who);paintWho()});paintWho();
+$("q").oninput=()=>{q=$("q").value.trim().toLowerCase();render()};
+
+/* ---------- liste ---------- */
+function fmtDur(s){s=Math.round(s||0);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
+function fmtTot(s){if(!s)return"";const m=Math.round(s/60);return m>=60?Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"):m+" min"}
+function card(x){
+  if(x.id===editing)return editHTML(x);
+  const heart=(x.lv&&x.ln)?"💞 ":x.lv?"💙 ":x.ln?"💗 ":"";
+  const dz="https://www.deezer.com/search/"+encodeURIComponent((x.title+" "+(x.artist||"")).trim());
+  return `<div class="song${x.status==="ok"?" okk":""}" data-id="${esc(x.id)}"><div class="t">${x.star?"⭐ ":""}${heart}${esc(x.title)}${x.by?`<span class="tag">${esc(x.by)}</span>`:""}</div><div class="a">${esc(x.artist||"")}${x.dur?" · "+fmtDur(x.dur):""}</div>${x.note?`<span class="nt">${esc(x.note)}</span>`:""}
+  <div class="acts"><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a></div></div>`;
+}
+function editHTML(x){
+  return `<div class="song" data-id="${esc(x.id)}"><input id="e_t" value="${esc(x.title)}" placeholder="Titre"><input id="e_a" value="${esc(x.artist||"")}" placeholder="Artiste"><input id="e_l" value="${esc(x.link||"")}" placeholder="Lien (facultatif)"><input id="e_n" value="${esc(x.note||"")}" placeholder="Note (ex. version live)">
+  <select id="e_m">${MOMENTS.map(m=>`<option${m===x.moment?" selected":""}>${esc(m)}</option>`).join("")}</select>
+  <label><input type="checkbox" id="e_s" style="width:auto"${x.star?" checked":""}> ⭐ Incontournable</label><br><label><input type="checkbox" id="e_lv" style="width:auto"${x.lv?" checked":""}> 💙 Victor</label> <label><input type="checkbox" id="e_ln" style="width:auto"${x.ln?" checked":""}> 💗 Valiha</label>
+  <div class="acts"><button class="p" data-a="sv" data-id="${esc(x.id)}">Enregistrer</button><button data-a="cx">Annuler</button><button data-a="del" data-id="${esc(x.id)}">${delId===x.id?"Confirmer la suppression":"🗑 Supprimer"}</button></div></div>`;
+}
+function render(){
+  const L=live(),ok=L.filter(x=>x.status==="ok").length;
+  $("count").textContent=L.length+" morceau"+(L.length>1?"x":"")+(L.length?" · "+ok+" validé"+(ok>1?"s":""):"");
+  const d=Math.ceil((new Date(2027,3,30)-new Date(new Date().toDateString()))/86400000);
+  const fait=TM.filter(m=>L.some(x=>x.moment===m)).length;
+  $("cd").textContent="🗓️ "+(d>0?"J-"+d+" · 30 avril 2027":d===0?"C'est aujourd'hui !":"Mariage passé")+" · "+fait+"/"+TM.length+" moments remplis";
+  let html="";
+  MOMENTS.forEach(m=>{
+    const it=L.filter(x=>x.moment===m&&(!q||((x.title||"")+" "+(x.artist||"")+" "+(x.note||"")).toLowerCase().includes(q)));
+    if(!it.length)return;
+    const tot=fmtTot(it.reduce((a,x)=>a+(x.dur||0),0));
+    html+=`<h2><span>${esc(m)}</span><span>${it.length}${tot?" · "+tot:""}</span></h2>`+it.map(card).join("");
+  });
+  $("list").innerHTML=html||'<div class="msg">Rien pour l\'instant. Tape un titre ci-dessus.</div>';
+  paintChrono();if(!$("dday").hidden)paintDDay();
+}
+$("list").onclick=e=>{
+  const b=e.target.closest("button[data-a]");if(!b)return;
+  const id=b.dataset.id,a=b.dataset.a,x=S.songs.find(s=>s.id===id);
+  if(a==="play"&&x){playIn(b.closest(".song"),x.prev)}
+  else if(a==="find"&&x){$("title").value=x.title;$("artist").value=x.artist||"";window.scrollTo({top:0,behavior:"smooth"});runSearch((x.title+" "+(x.artist||"")).trim())}
+  else if(a==="ok"&&x){change(()=>{x.status=x.status==="ok"?"":"ok";touch(x)})}
+  else if(a==="ed"){editing=id;delId=null;render()}
+  else if(a==="cx"){editing=null;render()}
+  else if(a==="sv"&&x){change(()=>{x.title=$("e_t").value.trim()||x.title;x.artist=$("e_a").value.trim();x.link=$("e_l").value.trim();x.note=$("e_n").value.trim();x.moment=$("e_m").value;x.star=$("e_s").checked;x.lv=$("e_lv").checked;x.ln=$("e_ln").checked;touch(x);editing=null})}
+  else if(a==="del"&&x){if(delId===id){change(()=>{x.del=true;touch(x);editing=null;delId=null})}else{delId=id;render()}}
+};
+
+/* ---------- chronologie ---------- */
+function toMin(h){const m=/^(\d{1,2}):(\d{2})$/.exec(h||"");return m?(+m[1])*60+(+m[2]):null}
+function paintChrono(){
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#chrobody"))return;
+  const T=S.times||{},L=live();
+  const rows=TM.map(m=>({m,t:toMin(T[m])})).filter(r=>r.t!=null).sort((a,b)=>a.t-b.t),idx=new Map(rows.map((r,i)=>[r.m,i]));
+  $("chrobody").innerHTML=TM.map((m,k)=>{
+    const it=L.filter(x=>x.moment===m),dur=it.reduce((a,x)=>a+(x.dur||0),0),i=idx.get(m);let st="";
+    if(i!=null){const nx=rows[i+1],mus=Math.round(dur/60);
+      if(!it.length)st='<div class="cst w">Aucun morceau pour ce moment</div>';
+      else if(!dur)st='<div class="cst">'+it.length+" morceau(x), durée inconnue</div>";
+      else if(nx){const dp=nx.t-rows[i].t;
+        if(mus>dp)st='<div class="cst w">⚠️ '+mus+" min de musique pour "+dp+" min : "+(mus-dp)+" min en trop</div>";
+        else if(mus<dp*.6)st='<div class="cst w">Il manque environ '+(dp-mus)+" min ("+mus+" sur "+dp+")</div>";
+        else st='<div class="cst g">✅ '+mus+" min pour "+dp+" min</div>"}
+      else st='<div class="cst">'+mus+" min de musique prévue</div>"}
+    return `<div class="crow"><label for="t${k}">${esc(m)}</label><input type="time" id="t${k}" data-m="${esc(m)}" value="${esc(T[m]||"")}"></div>${st}`;
+  }).join("");
+}
+document.addEventListener("change",e=>{
+  const i=e.target.closest&&e.target.closest("#chrobody input");if(!i)return;
+  change(()=>{if(!S.times)S.times={};if(i.value)S.times[i.dataset.m]=i.value;else delete S.times[i.dataset.m];S.tUpd=now()});
+});
+
+/* ---------- Jour J ---------- */
+function paintDDay(){
+  const T=S.times||{},L=live(),p=[];
+  TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
+    p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>`).join(""))});
+  const nc=L.filter(x=>x.moment==="À classer");if(nc.length)p.push('<div class="dm">À classer</div>'+nc.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
+  const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)p.push('<div class="dm bad">🚫 À ne pas jouer</div><div class="bad">'+ev.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join("")+"</div>");
+  $("ddbody").innerHTML=p.join("")||'<div class="msg">Rien pour l\'instant.</div>';
+}
+$("ddbtn").onclick=()=>{paintDDay();$("dday").hidden=false};$("ddclose").onclick=()=>{$("dday").hidden=true};
+
+/* ---------- copie / sauvegarde ---------- */
+async function copyTxt(t,btn,label){try{await navigator.clipboard.writeText(t);if(btn){btn.textContent="Copié ✓";setTimeout(()=>btn.textContent=label,2000)}}catch(e){prompt("Copie :",t)}}
+$("copyfiche").onclick=e=>{
+  const T=S.times||{},L=live(),out=[];
+  TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(it.length)out.push((T[m]?T[m]+" — ":"")+m+" :\n"+it.map(x=>"- "+x.title+(x.artist?" — "+x.artist:"")+(x.star?" (incontournable)":"")).join("\n"))});
+  const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)out.push("À ne pas jouer :\n"+ev.map(x=>"- "+x.title+(x.artist?" — "+x.artist:"")).join("\n"));
+  copyTxt(out.join("\n\n")||"(liste vide)",e.target,"Copier pour la fiche DJ");
+};
+$("bkcopy").onclick=e=>copyTxt(JSON.stringify(S),e.target,"Copier une sauvegarde");
+$("bkgo").onclick=()=>{
+  try{const j=JSON.parse($("bkin").value);if(!j||!Array.isArray(j.songs))throw 0;change(()=>{S=mergeState(S,j)});$("note").textContent="Sauvegarde restaurée."}
+  catch(e){$("note").textContent="Ce n'est pas une sauvegarde valide."}
+};
+
+/* ---------- démarrage ---------- */
+(function(){
+  let inFrame=false;try{inFrame=window.self!==window.top}catch(e){inFrame=true}
+  const proto=location.protocol;
+  if(inFrame||(proto!=="file:"&&proto!=="content:"&&!/^(https?:)$/.test(proto))||/claude\.(ai|com)|claudeusercontent/.test(location.hostname)){
+    $("ban").hidden=false;
+    $("ban").innerHTML="⚠️ Tu es dans l'aperçu de Claude : le son ne marchera pas ici. Ferme-le, ouvre l'appli <b>Fichiers</b> ou <b>Téléchargements</b> de ton téléphone, touche <b>playlist-complete.html</b> et choisis <b>Chrome</b>.";
+  }
+})();
+paintShare();paintSync();render();
+if(code)doSync();
+</script></body></html>
