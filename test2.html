@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Test partage</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:#faf7f2}h1{font-size:20px}h2{font-size:15px;margin:16px 0 4px}
+.r{border:1px solid #ddd;background:#fff;border-radius:12px;padding:10px 12px;margin:6px 0;font-size:14px;overflow-wrap:anywhere}
+.ok{border-color:#2a9d4a;background:#eefaf1}.ko{border-color:#c0392b;background:#fdf0ee}</style></head><body>
+<h1>🧪 Test des services de partage</h1>
+<p style="color:#666;font-size:14px">Attends 20 secondes puis fais une capture de toute la page.</p>
+<div id="out"></div>
+<script>
+const out=document.getElementById("out");
+const to=ms=>new Promise((_,j)=>setTimeout(()=>j(new Error("délai dépassé")),ms));
+function sec(t){const h=document.createElement("h2");h.textContent=t;out.appendChild(h)}
+function row(n){const d=document.createElement("div");d.className="r";d.textContent="⏳ "+n;out.appendChild(d);return(ok,m)=>{d.className="r "+(ok?"ok":"ko");d.textContent=(ok?"✅ ":"❌ ")+n+" — "+m}}
+async function step(n,f){const s=row(n);try{const m=await Promise.race([f(),to(9000)]);s(true,m||"ok");return true}catch(e){s(false,e.message);return false}}
+
+(async()=>{
+ // A. jsonblob avec en-tête minimal
+ sec("A. jsonblob (en-têtes minimaux)");
+ let idA=null;
+ await step("créer",async()=>{const r=await fetch("https://jsonblob.com/api/jsonBlob",{method:"POST",headers:{"Content-Type":"application/json"},body:'{"t":1}'});if(!r.ok)throw new Error("HTTP "+r.status);const l=r.headers.get("Location")||"";idA=(/([0-9a-f-]{8,})$/i.exec(l)||[])[1];return idA?"code lu":"créé mais Location illisible"});
+ // B. jsonstorage.net
+ sec("B. jsonstorage.net");
+ let uB=null;
+ await step("créer",async()=>{const r=await fetch("https://api.jsonstorage.net/v1/json",{method:"POST",headers:{"Content-Type":"application/json"},body:'{"t":1}'});const j=await r.json();if(!r.ok)throw new Error("HTTP "+r.status+" "+JSON.stringify(j).slice(0,60));uB=j.uri;return uB?"adresse reçue":"pas d'adresse"});
+ await step("relire",async()=>{if(!uB)throw new Error("pas d'adresse");const r=await fetch(uB);const j=await r.json();if(j.t!==1)throw new Error("contenu différent");return "ok"});
+ await step("modifier",async()=>{if(!uB)throw new Error("pas d'adresse");const r=await fetch(uB,{method:"PUT",headers:{"Content-Type":"application/json"},body:'{"t":2}'});if(!r.ok)throw new Error("HTTP "+r.status);return "ok"});
+ // C. kvdb.io
+ sec("C. kvdb.io");
+ let bC=null;
+ await step("créer un espace",async()=>{const r=await fetch("https://kvdb.io",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"email="+encodeURIComponent("test"+Date.now()+"@example.com")});const t=(await r.text()).trim();if(!r.ok)throw new Error("HTTP "+r.status+" "+t.slice(0,50));bC=t;return "espace "+t.slice(0,8)+"…"});
+ await step("écrire",async()=>{if(!bC)throw new Error("pas d'espace");const r=await fetch("https://kvdb.io/"+bC+"/liste",{method:"PUT",body:'{"t":1}'});if(!r.ok)throw new Error("HTTP "+r.status);return "ok"});
+ await step("relire",async()=>{if(!bC)throw new Error("pas d'espace");const r=await fetch("https://kvdb.io/"+bC+"/liste");const t=await r.text();if(!t.includes('"t":1'))throw new Error("contenu différent");return "ok"});
+})();
+</script></body></html>
