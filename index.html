@@ -103,68 +103,85 @@ const sig=s=>JSON.stringify({s:s.songs.map(x=>[x.id,x.upd]).sort(),t:s.tUpd});
 function touch(x){x.upd=now();return x}
 function change(fn){fn();persist();render();dirty=true;doSync()}
 
-/* ---------- partage (jsonblob) ---------- */
+/* ---------- partage automatique (via GitHub) ---------- */
+const GH="https://api.github.com/repos/victorpinkas13250-collab/vpi/contents/playlist-data.json";
+let token=ld("pm_token","");
+const ghH=()=>({"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json"});
+function b64enc(s){return btoa(unescape(encodeURIComponent(s)))}
+function b64dec(s){return decodeURIComponent(escape(atob(s.replace(/\s/g,""))))}
+async function ghGet(){
+  const r=await fetch(GH+"?ref=data&_="+Date.now(),{headers:ghH(),cache:"no-store"});
+  if(r.status===401||r.status===403)throw new Error("clé refusée ("+r.status+")");
+  if(r.status===404)return{sha:null,data:{songs:[],times:{},tUpd:0}};
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  const j=await r.json();
+  return{sha:j.sha,data:JSON.parse(b64dec(j.content))};
+}
+async function ghPut(data,sha){
+  const body={message:"sync",content:b64enc(JSON.stringify(data)),branch:"data"};if(sha)body.sha=sha;
+  const r=await fetch(GH,{method:"PUT",headers:{...ghH(),"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(r.status===409||r.status===422)return false;
+  if(r.status===401||r.status===403)throw new Error("clé refusée ("+r.status+")");
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  return true;
+}
 function paintSync(){
   const b=$("sync");
-  b.textContent=!code?"⚪ Non partagé":net==="ok"?"🟢 Partagé":net==="busy"?"🔄 Synchro…":"🔴 Hors ligne";
+  b.textContent=!token?"⚪ Non partagé":net==="ok"?"🟢 Partagé":net==="busy"?"🔄 Synchro…":"🔴 Hors ligne";
 }
 async function doSync(){
-  if(!code||syncing)return;syncing=true;net="busy";paintSync();
+  if(!token||syncing)return;syncing=true;net="busy";paintSync();
   try{
-    const r=await fetch(BLOB+code,{headers:HDR});
-    if(!r.ok)throw new Error("HTTP "+r.status);
-    const remote=await r.json();
-    const merged=mergeState(S,remote);
-    const changedLocal=sig(merged)!==sig(S);
-    const changedRemote=sig(merged)!==sig(remote);
-    S=merged;persist();
-    if(changedRemote||dirty){
-      const p=await fetch(BLOB+code,{method:"PUT",headers:HDR,body:JSON.stringify(S)});
-      if(!p.ok)throw new Error("HTTP "+p.status);
+    let done=false;
+    for(let i=0;i<4&&!done;i++){
+      const g=await ghGet();
+      const merged=mergeState(S,g.data);
+      const changedLocal=sig(merged)!==sig(S);
+      const changedRemote=sig(merged)!==sig(g.data);
+      S=merged;persist();
+      if(changedRemote||dirty||!g.sha){done=await ghPut(S,g.sha)}else done=true;
+      if(done&&changedLocal)render();
     }
+    if(!done)throw new Error("conflit répété");
     dirty=false;net="ok";
-    if(changedLocal)render();
   }catch(e){net="err";$("note").textContent="Synchro impossible : "+e.message}
   syncing=false;paintSync();
 }
-function codeFrom(t){const m=/([0-9a-f]{8,})\/?\s*$/i.exec((t||"").trim());return m?m[1]:""}
 function paintShare(){
   const box=$("sharebody");
-  let h='<p class="small"><b>Échange manuel (marche toujours)</b> : chacun envoie sa liste à l\'autre, elles se fusionnent sans rien perdre, suppressions comprises.</p><button type="button" class="p big" id="mout">📤 Envoyer ma liste à Valiha</button><button type="button" class="big" id="min" style="margin-top:8px">📥 Recevoir la liste de Valiha</button><textarea id="mtxt" rows="3" placeholder="Si le bouton Recevoir ne marche pas, colle la liste ici" hidden></textarea><button type="button" class="big" id="mgo" hidden>Fusionner</button><div id="mmsg" class="msg"></div><hr style="border:0;border-top:1px solid var(--line);margin:14px 0">';
-  if(code){
-    h+='<p class="small">Partage automatique actif. Code pour Valiha : <code>'+esc(code)+'</code></p><button type="button" id="unlink" class="mini">Se déconnecter du partage automatique</button>';
+  let h='';
+  if(token){
+    h+='<p class="small">🟢 Partage automatique actif. Valiha doit entrer la même clé dans son téléphone.</p><button type="button" id="unlink" class="mini">Désactiver le partage sur ce téléphone</button><hr style="border:0;border-top:1px solid var(--line);margin:14px 0">';
   }else{
-    h+='<details><summary class="small">Partage automatique (si ton téléphone l\'accepte)</summary><button type="button" class="big" id="mk">Créer la liste partagée</button><input id="jc" placeholder="Code reçu (pour rejoindre)"><button type="button" class="big" id="jn">Rejoindre avec ce code</button><div id="shmsg" class="msg"></div></details>';
+    h+='<p class="small"><b>Partage automatique</b> : colle ici la clé GitHub (une seule fois par téléphone).</p><input id="tk" placeholder="github_pat_…" autocomplete="off"><button type="button" class="p big" id="tkgo">Activer le partage</button><div id="shmsg" class="msg"></div><hr style="border:0;border-top:1px solid var(--line);margin:14px 0">';
   }
+  h+='<p class="small"><b>Échange manuel</b> (secours) : chacun envoie sa liste à l\'autre, elles fusionnent sans rien perdre.</p><button type="button" class="big" id="mout">📤 Envoyer ma liste</button><button type="button" class="big" id="min" style="margin-top:8px">📥 Recevoir une liste</button><textarea id="mtxt" rows="3" placeholder="Colle la liste reçue ici" hidden></textarea><button type="button" class="big" id="mgo" hidden>Fusionner</button><div id="mmsg" class="msg"></div>';
   box.innerHTML=h;
   const mm=t=>{$("mmsg").textContent=t};
   $("mout").onclick=async()=>{
     const txt=JSON.stringify(S);
     try{if(navigator.share){await navigator.share({title:"Playlist mariage",text:txt});mm("Envoyé.");return}}catch(e){if(e&&e.name==="AbortError")return}
-    try{await navigator.clipboard.writeText(txt);mm("Liste copiée : colle-la dans un message à Valiha.")}catch(e){$("mtxt").hidden=false;$("mtxt").value=txt;$("mtxt").select();mm("Copie le texte ci-dessus et envoie-le.")}
+    try{await navigator.clipboard.writeText(txt);mm("Liste copiée : colle-la dans un message.")}catch(e){$("mtxt").hidden=false;$("mtxt").value=txt;$("mtxt").select();mm("Copie le texte ci-dessus et envoie-le.")}
   };
   const merge=t=>{
     try{const m=/\{[\s\S]*\}/.exec(t);const j=JSON.parse(m?m[0]:t);if(!j||!Array.isArray(j.songs))throw 0;
-      const before=live().length;change(()=>{S=mergeState(S,j)});mm("Fusionné : "+live().length+" morceau(x) maintenant (avant : "+before+").");$("mtxt").hidden=true;$("mgo").hidden=true;$("mtxt").value=""}
+      const before=live().length;change(()=>{S=mergeState(S,j)});mm("Fusionné : "+live().length+" morceau(x) (avant : "+before+").");$("mtxt").hidden=true;$("mgo").hidden=true;$("mtxt").value=""}
     catch(e){mm("Ce n'est pas une liste valide.")}
   };
   $("min").onclick=async()=>{
     let t="";try{t=await navigator.clipboard.readText()}catch(e){}
     if(t&&/"songs"/.test(t)){merge(t);return}
-    $("mtxt").hidden=false;$("mgo").hidden=false;mm("Colle la liste de Valiha dans la case, puis touche Fusionner.")
+    $("mtxt").hidden=false;$("mgo").hidden=false;mm("Colle la liste dans la case, puis touche Fusionner.")
   };
   $("mgo").onclick=()=>merge($("mtxt").value);
-  if(code){$("unlink").onclick=()=>{code="";persist();net="off";paintSync();paintShare()};return}
-  $("mk").onclick=async()=>{
-    $("shmsg").textContent="Création…";
-    try{
-      const r=await fetch(BLOB.slice(0,-1),{method:"POST",headers:HDR,body:JSON.stringify(S)});
-      const c=codeFrom(r.headers.get("Location")||r.headers.get("location")||"");
-      if(!r.ok||!c)throw new Error("adresse non reçue");
-      code=c;persist();dirty=true;paintShare();doSync();
-    }catch(e){$("shmsg").textContent="Bloqué sur ce téléphone ("+e.message+"). Utilise l'échange manuel ci-dessus."}
+  if(token){$("unlink").onclick=()=>{token="";sv("pm_token","");net="off";paintSync();paintShare()};return}
+  $("tkgo").onclick=async()=>{
+    const t=$("tk").value.trim();if(!/^(github_pat_|ghp_)/.test(t)){$("shmsg").textContent="Cette clé ne ressemble pas à une clé GitHub (elle commence par github_pat_).";return}
+    token=t;sv("pm_token",token);dirty=true;$("shmsg").textContent="Vérification…";
+    await doSync();
+    if(net!=="ok"){const why=$("note").textContent;token="";sv("pm_token","");paintSync();$("shmsg").textContent="Échec. "+why;return}
+    paintShare();
   };
-  $("jn").onclick=async()=>{const c=codeFrom($("jc").value);if(!c){$("shmsg").textContent="Code non reconnu.";return}code=c;persist();dirty=true;paintShare();await doSync()};
 }
 $("sync").onclick=()=>{$("share").open=true;$("share").scrollIntoView({behavior:"smooth"});doSync()};
 setInterval(doSync,10000);
@@ -358,5 +375,5 @@ $("bkgo").onclick=()=>{
   }
 })();
 paintShare();paintSync();render();
-if(code)doSync();
+if(token)doSync();
 </script></body></html>
