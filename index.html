@@ -68,6 +68,10 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 <details id="chrono"><summary>🕒 Chronologie de la soirée</summary>
   <p class="small">Mets l'heure de début de chaque moment : on compare avec la durée de musique prévue.</p><div id="chrobody"></div></details>
 
+<details id="keyd"><summary>🎬 Moments clés pour le DJ</summary><p class="small">Heure + morceau pour chaque temps fort. Part dans la fiche DJ et le Jour J.</p><div id="keybody"></div></details>
+<details id="insp"><summary>🎲 M'inspirer</summary><p class="small">Idées classiques de mariage, hors ce que vous avez déjà. Touche + pour ajouter.</p><select id="inspm"></select><div id="inspbody"></div></details>
+<details id="nrg"><summary>🌡️ Énergie et générations</summary><div id="nrgbody"></div></details>
+<details id="banw"><summary>🔇 Mots à éviter</summary><p class="small">Artistes, titres ou mots à écarter, séparés par des virgules. L'app prévient à l'ajout.</p><input id="banin" placeholder="ex. Jul, Macarena, mort"><div id="banbody" class="small"></div></details>
 <details id="deadl"><summary>📅 Échéances jusqu'au mariage</summary><div id="deadbody"></div></details>
 
 <details id="share"><summary>🔗 Partage avec Valiha</summary>
@@ -252,7 +256,7 @@ async function runSearch(term){
   }catch(e){$("note").textContent="Recherche impossible ("+e.message+"). Origine de la page : "+location.protocol+"//"+(location.hostname||"fichier")+". Essaie d'ouvrir le fichier avec l'adresse file:///storage/emulated/0/Download/playlist-complete.html dans Chrome."}
 }
 $("search").onclick=()=>{const t=($("title").value+" "+$("artist").value).trim();if(!t){$("note").textContent="Tape un titre.";return}runSearch(t)};
-function checkDup(){const d=findDup($("title").value,$("artist").value);$("dup").textContent=d?(d.moment==="À éviter"?"🚫 Attention : vous avez mis ce titre dans « À éviter »":"⚠️ Déjà dans la liste ("+d.moment+")"):""}
+function checkDup(){const d=findDup($("title").value,$("artist").value);const bh=banHit({title:$("title").value,artist:$("artist").value});if(bh&&!d){$("dup").textContent="🔇 Contient un mot à éviter";return}$("dup").textContent=d?(d.moment==="À éviter"?"🚫 Attention : vous avez mis ce titre dans « À éviter »":"⚠️ Déjà dans la liste ("+d.moment+")"):""}
 $("title").oninput=()=>{checkShared();checkDup()};$("artist").oninput=checkDup;
 
 /* ---------- coller depuis Shazam ---------- */
@@ -275,7 +279,7 @@ $("paste").onclick=async()=>{
 
 /* ---------- ajout / actions ---------- */
 function addSong(o){
-  change(()=>{S.songs.push(touch({id:newId(),title:o.title,artist:o.artist||"",link:o.link||"",note:o.note||"",moment:$("moment").value,by:who,prev:o.prev||"",dur:o.dur||0,ts:now()}))});
+  change(()=>{S.songs.push(touch({id:newId(),title:o.title,artist:o.artist||"",link:o.link||"",note:o.note||"",moment:o.moment||$("moment").value,by:who,prev:o.prev||"",dur:o.dur||0,ts:now()}))});
 }
 $("addraw").onclick=()=>{
   const t=$("title").value.trim();if(!t){$("note").textContent="Tape un titre.";return}
@@ -303,12 +307,13 @@ function card(x){
   if(x.id===editing)return editHTML(x);
   const heart=(x.lv&&x.ln)?"💞 ":x.lv?"💙 ":x.ln?"💗 ":"";
   const dz="https://www.deezer.com/search/"+encodeURIComponent((x.title+" "+(x.artist||"")).trim());
-  return `<div class="song${x.status==="ok"?" okk":""}" data-id="${esc(x.id)}"><div class="t">${x.star?"⭐ ":""}${heart}${esc(x.title)}${x.by?`<span class="tag">${esc(x.by)}</span>`:""}</div><div class="a">${esc(x.artist||"")}${x.dur?" · "+fmtDur(x.dur):""}</div>${x.note?`<span class="nt">${esc(x.note)}</span>`:""}${x.ded?`<div class="small">🎤 ${esc(x.ded)}</div>`:""}
+  return `<div class="song${x.status==="ok"?" okk":""}" data-id="${esc(x.id)}"><div class="t">${x.star?"⭐ ":""}${heart}${esc(x.title)}${x.by?`<span class="tag">${esc(x.by)}</span>`:""}</div><div class="a">${esc(x.artist||"")}${x.dur?" · "+fmtDur(x.dur):""}</div>${x.note?`<span class="nt">${esc(x.note)}</span>`:""}${x.ded?`<div class="small">🎤 ${esc(x.ded)}</div>`:""}${(x.en||x.gen)?`<div class="small">${x.en?["","🌙","🙂","🔥"][x.en]:""} ${esc(x.gen||"")}</div>`:""}${banHit(x)&&x.moment!=="À éviter"?`<div class="small" style="color:var(--bad)">🔇 contient un mot à éviter</div>`:""}
   <div class="small" style="margin-top:6px">${voteInfo(x).line}</div><div class="acts"><button data-a="vote" data-val="1" data-id="${esc(x.id)}">👍</button><button data-a="vote" data-val="0" data-id="${esc(x.id)}">😐</button><button data-a="vote" data-val="-1" data-id="${esc(x.id)}">👎</button><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="up" data-id="${esc(x.id)}">⬆️</button><button data-a="dn" data-id="${esc(x.id)}">⬇️</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><button data-a="ban" data-id="${esc(x.id)}">🚫</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a></div></div>`;
 }
 function editHTML(x){
   return `<div class="song" data-id="${esc(x.id)}"><input id="e_t" value="${esc(x.title)}" placeholder="Titre"><input id="e_a" value="${esc(x.artist||"")}" placeholder="Artiste"><input id="e_l" value="${esc(x.link||"")}" placeholder="Lien (facultatif)"><input id="e_n" value="${esc(x.note||"")}" placeholder="Note (ex. version live)"><input id="e_d" value="${esc(x.ded||"")}" placeholder="🎤 Dédicace / anecdote (annoncée par le DJ)">
   <select id="e_m">${MOMENTS.map(m=>`<option${m===x.moment?" selected":""}>${esc(m)}</option>`).join("")}</select>
+  <select id="e_e"><option value="">Énergie ?</option><option value="1"${x.en===1?" selected":""}>🌙 Calme</option><option value="2"${x.en===2?" selected":""}>🙂 Moyen</option><option value="3"${x.en===3?" selected":""}>🔥 Dansant</option></select><select id="e_g">${GENS.map(g=>`<option value="${g}"${x.gen===g?" selected":""}>${g||"Époque ?"}</option>`).join("")}</select>
   <label><input type="checkbox" id="e_s" style="width:auto"${x.star?" checked":""}> ⭐ Incontournable</label><br><label><input type="checkbox" id="e_lv" style="width:auto"${x.lv?" checked":""}> 💙 Victor</label> <label><input type="checkbox" id="e_ln" style="width:auto"${x.ln?" checked":""}> 💗 Valiha</label>
   <div class="acts"><button class="p" data-a="sv" data-id="${esc(x.id)}">Enregistrer</button><button data-a="cx">Annuler</button><button data-a="del" data-id="${esc(x.id)}">${delId===x.id?"Confirmer la suppression":"🗑 Supprimer"}</button></div></div>`;
 }
@@ -328,7 +333,7 @@ function render(){
     html+=`<h2><span>${esc(m)}</span><span>${it.length}${tot?" · "+tot:""}</span></h2>`+it.map(card).join("");
   });
   $("list").innerHTML=html||'<div class="msg">Rien pour l\'instant. Tape un titre ci-dessus.</div>';
-  paintChrono();paintDead();if(!$("dday").hidden)paintDDay();
+  paintChrono();paintDead();paintExtras();if(!$("dday").hidden)paintDDay();
 }
 $("list").onclick=e=>{
   const b=e.target.closest("button[data-a]");if(!b)return;
@@ -348,7 +353,7 @@ $("list").onclick=e=>{
   else if(a==="ban"&&x){change(()=>{x.moment=x.moment==="À éviter"?"À classer":"À éviter";touch(x)})}
   else if(a==="ed"){editing=id;delId=null;render()}
   else if(a==="cx"){editing=null;render()}
-  else if(a==="sv"&&x){change(()=>{x.title=$("e_t").value.trim()||x.title;x.artist=$("e_a").value.trim();x.link=$("e_l").value.trim();x.note=$("e_n").value.trim();x.ded=$("e_d").value.trim();x.moment=$("e_m").value;x.star=$("e_s").checked;x.lv=$("e_lv").checked;x.ln=$("e_ln").checked;touch(x);editing=null})}
+  else if(a==="sv"&&x){change(()=>{x.title=$("e_t").value.trim()||x.title;x.artist=$("e_a").value.trim();x.link=$("e_l").value.trim();x.note=$("e_n").value.trim();x.ded=$("e_d").value.trim();x.en=+$("e_e").value||0;x.gen=$("e_g").value;x.moment=$("e_m").value;x.star=$("e_s").checked;x.lv=$("e_lv").checked;x.ln=$("e_ln").checked;touch(x);editing=null})}
   else if(a==="del"&&x){if(delId===id){change(()=>{x.del=true;touch(x);editing=null;delId=null})}else{delId=id;render()}}
 };
 
@@ -384,6 +389,56 @@ document.addEventListener("change",e=>{
   change(()=>{if(!S.times)S.times={};if(i.value.trim())S.times[k]=i.value.trim();else delete S.times[k];S.tUpd=now()});
 });
 
+/* ---------- idées 5 ---------- */
+const KEYS=[["ent","Entrée des mariés"],["bal","Ouverture de bal"],["dis","Discours"],["gat","Gâteau / pièce montée"],["bou","Lancé du bouquet"],["der","Dernier morceau"]];
+const GENS=["","Années 60-70","Années 80","Années 90","Années 2000","Actuel"];
+const SUG={
+"Cocktail":[["La Vie en rose","Louis Armstrong"],["Fly Me to the Moon","Frank Sinatra"],["Valerie","Amy Winehouse"],["Les Champs-Élysées","Joe Dassin"],["Sunday Morning","Maroon 5"],["Dernière danse","Indila"],["Aux Champs-Élysées","Joe Dassin"]],
+"Cérémonie · Entrée de la mariée":[["Canon in D","Pachelbel"],["A Thousand Years","Christina Perri"],["Perfect","Ed Sheeran"],["Can't Help Falling in Love","Elvis Presley"],["Marry Me","Train"]],
+"Cérémonie · Entrée du marié":[["Beautiful Day","U2"],["Here Comes the Sun","The Beatles"],["Marry You","Bruno Mars"]],
+"Cérémonie · Alliances":[["Je l'aime à mourir","Francis Cabrel"],["All of Me","John Legend"],["Thinking Out Loud","Ed Sheeran"]],
+"Cérémonie · Sortie":[["Signed, Sealed, Delivered","Stevie Wonder"],["Happy","Pharrell Williams"],["Marry You","Bruno Mars"]],
+"Dîner":[["Fly Me to the Moon","Frank Sinatra"],["La Vie en rose","Édith Piaf"],["Dream a Little Dream of Me","Ella Fitzgerald"],["Les Copains d'abord","Georges Brassens"],["Isn't She Lovely","Stevie Wonder"]],
+"Ouverture de bal":[["At Last","Etta James"],["Perfect","Ed Sheeran"],["Thinking Out Loud","Ed Sheeran"],["L'Hymne à l'amour","Édith Piaf"],["Can't Help Falling in Love","Elvis Presley"]],
+"Danse avec les parents":[["My Girl","The Temptations"],["What a Wonderful World","Louis Armstrong"],["Le Sud","Nino Ferrer"]],
+"Soirée dansante":[["September","Earth, Wind & Fire"],["Uptown Funk","Mark Ronson"],["I Wanna Dance with Somebody","Whitney Houston"],["Dancing Queen","ABBA"],["Mr. Brightside","The Killers"],["Don't Stop Me Now","Queen"],["Gimme! Gimme! Gimme!","ABBA"],["Sweet Caroline","Neil Diamond"],["Danse","Chaleur"]],
+"Slows":[["Et si tu n'existais pas","Joe Dassin"],["Careless Whisper","George Michael"],["Endless Love","Lionel Richie"],["Unchained Melody","The Righteous Brothers"]],
+"Dernier morceau":[["Don't Stop Believin'","Journey"],["Bohemian Rhapsody","Queen"],["Ma gueule","Johnny Hallyday"]]};
+function sugList(m){const have=new Set(live().map(x=>norm(x.title)));return(SUG[m]||[]).filter(([t])=>!have.has(norm(t)))}
+function paintExtras(){
+  const T=S.times||{},L=live();
+  const act=document.activeElement;if(act&&act.closest&&act.closest("#keybody,#banw"))return;
+  $("keybody").innerHTML=KEYS.map(([id,l])=>`<div class="crow" style="flex-wrap:wrap"><b style="width:100%">${esc(l)}</b><input type="time" data-k="${id}:t" value="${esc(T["k:"+id+":t"]||"")}"><input data-k="${id}:s" placeholder="Morceau" value="${esc(T["k:"+id+":s"]||"")}" style="flex:1"></div>`).join("");
+  const im=$("inspm");if(!im.options.length)im.innerHTML=Object.keys(SUG).map(m=>`<option>${esc(m)}</option>`).join("");
+  $("inspbody").innerHTML=sugList(im.value).map(([t,a])=>`<div class="crow" style="margin:6px 0"><span style="flex:1">${esc(t)} <span class="small">${esc(a)}</span></span><button type="button" data-sg="${esc(t)}|${esc(a)}">+</button></div>`).join("")||'<div class="small">Plus d\'idée ici : vous avez tout !</div>';
+  // énergie
+  const seq=TM.flatMap(m=>L.filter(x=>x.moment===m));
+  const cnt=n=>seq.filter(x=>x.en===n).length;
+  let svg="",alert="";
+  const es=seq.filter(x=>x.en);
+  if(es.length){const W=Math.max(es.length*8,40);svg=`<svg viewBox="0 0 ${W} 36" style="width:100%;height:80px">`+es.map((x,i)=>`<rect x="${i*8}" y="${36-x.en*11}" width="6" height="${x.en*11}" fill="${["","#5b8def","#f5a623","#e8505b"][x.en]}"/>`).join("")+"</svg>";
+    for(let i=0;i+2<es.length;i++)if(es[i].en===1&&es[i+1].en===1&&es[i+2].en===1){alert="⚠️ 3 morceaux calmes de suite autour de « "+esc(es[i+1].title)+" ».";break}}
+  const gc=GENS.slice(1).map(g=>[g,L.filter(x=>x.gen===g&&x.moment!=="À éviter").length]);
+  const tg=gc.reduce((a,b)=>a+b[1],0);
+  $("nrgbody").innerHTML=`<p class="small">Renseigne l'énergie (calme / moyen / dansant) et l'époque dans ✏️.</p>`+(svg||'<div class="small">Pas encore de morceau avec énergie.</div>')+`<div class="small">${cnt(1)} calmes · ${cnt(2)} moyens · ${cnt(3)} dansants</div>${alert?`<div class="cst w">${alert}</div>`:""}<h2 style="margin:14px 0 4px">Générations</h2>`+(tg?gc.map(([g,n])=>`<div class="small">${esc(g)} : ${n} (${Math.round(100*n/tg)} %)</div>`).join(""):'<div class="small">Pas encore d\'époque renseignée.</div>');
+  // mots à éviter
+  const bw=banWords();$("banin").value!==undefined&&document.activeElement!==$("banin")&&($("banin").value=T.ban||"");
+  const hits=bw.length?L.filter(x=>x.moment!=="À éviter"&&banHit(x)):[];
+  $("banbody").innerHTML=hits.length?"⚠️ Déjà dans la liste : "+hits.map(x=>esc(x.title)).join(", "):(bw.length?"Rien de gênant dans la liste.":"");
+}
+function banWords(){return String((S.times||{}).ban||"").split(",").map(norm).filter(Boolean)}
+function banHit(x){const t=norm(x.title+" "+(x.artist||"")+" "+(x.note||""));return banWords().some(w=>t.includes(w))}
+document.addEventListener("change",e=>{
+  const k=e.target.dataset&&e.target.dataset.k;
+  if(k&&e.target.closest("#keybody"))change(()=>{if(!S.times)S.times={};S.times["k:"+k]=e.target.value.trim();S.tUpd=now()});
+  if(e.target.id==="banin")change(()=>{if(!S.times)S.times={};S.times.ban=e.target.value.trim();S.tUpd=now()});
+  if(e.target.id==="inspm")paintExtras();
+});
+document.addEventListener("click",e=>{
+  const b=e.target.closest&&e.target.closest("[data-sg]");if(!b)return;
+  const[t,a]=b.dataset.sg.split("|");addSong({title:t,artist:a,moment:$("inspm").value});
+});
+
 /* ---------- échéances ---------- */
 const DEAD=[["v","Vote terminé (Victor et Valiha)",60],["l","Liste finale validée",45],["d","Fiche envoyée au DJ",30],["p","Plan B validé",14],["i","Jour J imprimé",7]];
 function paintDead(){
@@ -405,6 +460,8 @@ function paintDDay(){
   const T=S.times||{},L=live(),p=[];
   TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
     p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}${T["amb:"+m]?" · ambiance : "+esc(T["amb:"+m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>${x.ded?`<div class="da">🎤 ${esc(x.ded)}</div>`:""}`).join(""))});
+  const kl=KEYS.filter(([id])=>T["k:"+id+":t"]||T["k:"+id+":s"]);
+  if(kl.length)p.unshift('<div class="dm">Moments clés</div>'+kl.map(([id,l])=>`<div class="ds">${esc(T["k:"+id+":t"]||"--:--")} · ${esc(l)}</div><div class="da">${esc(T["k:"+id+":s"]||"")}</div>`).join(""));
   const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)p.push('<div class="dm">Plan B (secours)</div>'+pb.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)p.push('<div class="dm">À classer</div>'+nc.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)p.push('<div class="dm bad">🚫 À ne pas jouer</div><div class="bad">'+ev.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join("")+"</div>");
@@ -421,6 +478,8 @@ $("copyfiche").onclick=e=>{
   if(stars.length)out.push("INCONTOURNABLES :\n"+stars.map(line).join("\n"));
   TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
     out.push((T[m]?T[m]+" — ":"")+m+(T["amb:"+m]?" (ambiance : "+T["amb:"+m]+")":"")+" :\n"+it.map(x=>line(x)+(x.star?" ⭐":"")+(x.ded?"\n    🎤 Dédicace : "+x.ded:"")).join("\n"))});
+  const kl=KEYS.filter(([id])=>T["k:"+id+":t"]||T["k:"+id+":s"]).map(([id,l])=>"- "+(T["k:"+id+":t"]||"--:--")+" "+l+(T["k:"+id+":s"]?" : "+T["k:"+id+":s"]:""));
+  if(kl.length)out.unshift("MOMENTS CLÉS :\n"+kl.join("\n"));
   const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)out.push("PLAN B (si la salle ne suit pas) :\n"+pb.map(line).join("\n"));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)out.push("À classer :\n"+nc.map(line).join("\n"));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)out.push("À NE PAS JOUER :\n"+ev.map(line).join("\n"));
