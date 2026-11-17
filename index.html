@@ -95,7 +95,7 @@ let S={songs:[],times:{},tUpd:0},code="",who="Les deux",editing=null,q="",net="o
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 S=ld("pm_state",S);code=ld("pm_code","");who=ld("pm_who",who);
-const live=()=>S.songs.filter(x=>!x.del);
+const live=()=>S.songs.filter(x=>!x.del).sort((a,b)=>(a.ord??a.ts??0)-(b.ord??b.ts??0));
 const now=()=>Date.now();
 function newId(){return "s"+now().toString(36)+Math.random().toString(36).slice(2,6)}
 function persist(){sv("pm_state",S);sv("pm_code",code)}
@@ -252,7 +252,7 @@ async function runSearch(term){
   }catch(e){$("note").textContent="Recherche impossible ("+e.message+"). Origine de la page : "+location.protocol+"//"+(location.hostname||"fichier")+". Essaie d'ouvrir le fichier avec l'adresse file:///storage/emulated/0/Download/playlist-complete.html dans Chrome."}
 }
 $("search").onclick=()=>{const t=($("title").value+" "+$("artist").value).trim();if(!t){$("note").textContent="Tape un titre.";return}runSearch(t)};
-function checkDup(){const d=findDup($("title").value,$("artist").value);$("dup").textContent=d?"⚠️ Déjà dans la liste ("+d.moment+")":""}
+function checkDup(){const d=findDup($("title").value,$("artist").value);$("dup").textContent=d?(d.moment==="À éviter"?"🚫 Attention : vous avez mis ce titre dans « À éviter »":"⚠️ Déjà dans la liste ("+d.moment+")"):""}
 $("title").oninput=()=>{checkShared();checkDup()};$("artist").oninput=checkDup;
 
 /* ---------- coller depuis Shazam ---------- */
@@ -303,11 +303,11 @@ function card(x){
   if(x.id===editing)return editHTML(x);
   const heart=(x.lv&&x.ln)?"💞 ":x.lv?"💙 ":x.ln?"💗 ":"";
   const dz="https://www.deezer.com/search/"+encodeURIComponent((x.title+" "+(x.artist||"")).trim());
-  return `<div class="song${x.status==="ok"?" okk":""}" data-id="${esc(x.id)}"><div class="t">${x.star?"⭐ ":""}${heart}${esc(x.title)}${x.by?`<span class="tag">${esc(x.by)}</span>`:""}</div><div class="a">${esc(x.artist||"")}${x.dur?" · "+fmtDur(x.dur):""}</div>${x.note?`<span class="nt">${esc(x.note)}</span>`:""}
-  <div class="small" style="margin-top:6px">${voteInfo(x).line}</div><div class="acts"><button data-a="vote" data-val="1" data-id="${esc(x.id)}">👍</button><button data-a="vote" data-val="0" data-id="${esc(x.id)}">😐</button><button data-a="vote" data-val="-1" data-id="${esc(x.id)}">👎</button><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a></div></div>`;
+  return `<div class="song${x.status==="ok"?" okk":""}" data-id="${esc(x.id)}"><div class="t">${x.star?"⭐ ":""}${heart}${esc(x.title)}${x.by?`<span class="tag">${esc(x.by)}</span>`:""}</div><div class="a">${esc(x.artist||"")}${x.dur?" · "+fmtDur(x.dur):""}</div>${x.note?`<span class="nt">${esc(x.note)}</span>`:""}${x.ded?`<div class="small">🎤 ${esc(x.ded)}</div>`:""}
+  <div class="small" style="margin-top:6px">${voteInfo(x).line}</div><div class="acts"><button data-a="vote" data-val="1" data-id="${esc(x.id)}">👍</button><button data-a="vote" data-val="0" data-id="${esc(x.id)}">😐</button><button data-a="vote" data-val="-1" data-id="${esc(x.id)}">👎</button><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="up" data-id="${esc(x.id)}">⬆️</button><button data-a="dn" data-id="${esc(x.id)}">⬇️</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><button data-a="ban" data-id="${esc(x.id)}">🚫</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a></div></div>`;
 }
 function editHTML(x){
-  return `<div class="song" data-id="${esc(x.id)}"><input id="e_t" value="${esc(x.title)}" placeholder="Titre"><input id="e_a" value="${esc(x.artist||"")}" placeholder="Artiste"><input id="e_l" value="${esc(x.link||"")}" placeholder="Lien (facultatif)"><input id="e_n" value="${esc(x.note||"")}" placeholder="Note (ex. version live)">
+  return `<div class="song" data-id="${esc(x.id)}"><input id="e_t" value="${esc(x.title)}" placeholder="Titre"><input id="e_a" value="${esc(x.artist||"")}" placeholder="Artiste"><input id="e_l" value="${esc(x.link||"")}" placeholder="Lien (facultatif)"><input id="e_n" value="${esc(x.note||"")}" placeholder="Note (ex. version live)"><input id="e_d" value="${esc(x.ded||"")}" placeholder="🎤 Dédicace / anecdote (annoncée par le DJ)">
   <select id="e_m">${MOMENTS.map(m=>`<option${m===x.moment?" selected":""}>${esc(m)}</option>`).join("")}</select>
   <label><input type="checkbox" id="e_s" style="width:auto"${x.star?" checked":""}> ⭐ Incontournable</label><br><label><input type="checkbox" id="e_lv" style="width:auto"${x.lv?" checked":""}> 💙 Victor</label> <label><input type="checkbox" id="e_ln" style="width:auto"${x.ln?" checked":""}> 💗 Valiha</label>
   <div class="acts"><button class="p" data-a="sv" data-id="${esc(x.id)}">Enregistrer</button><button data-a="cx">Annuler</button><button data-a="del" data-id="${esc(x.id)}">${delId===x.id?"Confirmer la suppression":"🗑 Supprimer"}</button></div></div>`;
@@ -341,9 +341,14 @@ $("list").onclick=e=>{
   else if(a==="play"&&x){playIn(b.closest(".song"),x.prev)}
   else if(a==="find"&&x){$("title").value=x.title;$("artist").value=x.artist||"";window.scrollTo({top:0,behavior:"smooth"});runSearch((x.title+" "+(x.artist||"")).trim())}
   else if(a==="ok"&&x){change(()=>{x.status=x.status==="ok"?"":"ok";touch(x)})}
+  else if((a==="up"||a==="dn")&&x){
+    const g=live().filter(y=>y.moment===x.moment),i=g.indexOf(x),j=a==="up"?i-1:i+1;
+    if(j>=0&&j<g.length){change(()=>{g.splice(i,1);g.splice(j,0,x);g.forEach((y,k)=>{if(y.ord!==k+1){y.ord=k+1;touch(y)}})})}
+  }
+  else if(a==="ban"&&x){change(()=>{x.moment=x.moment==="À éviter"?"À classer":"À éviter";touch(x)})}
   else if(a==="ed"){editing=id;delId=null;render()}
   else if(a==="cx"){editing=null;render()}
-  else if(a==="sv"&&x){change(()=>{x.title=$("e_t").value.trim()||x.title;x.artist=$("e_a").value.trim();x.link=$("e_l").value.trim();x.note=$("e_n").value.trim();x.moment=$("e_m").value;x.star=$("e_s").checked;x.lv=$("e_lv").checked;x.ln=$("e_ln").checked;touch(x);editing=null})}
+  else if(a==="sv"&&x){change(()=>{x.title=$("e_t").value.trim()||x.title;x.artist=$("e_a").value.trim();x.link=$("e_l").value.trim();x.note=$("e_n").value.trim();x.ded=$("e_d").value.trim();x.moment=$("e_m").value;x.star=$("e_s").checked;x.lv=$("e_lv").checked;x.ln=$("e_ln").checked;touch(x);editing=null})}
   else if(a==="del"&&x){if(delId===id){change(()=>{x.del=true;touch(x);editing=null;delId=null})}else{delId=id;render()}}
 };
 
@@ -399,7 +404,7 @@ document.addEventListener("change",e=>{
 function paintDDay(){
   const T=S.times||{},L=live(),p=[];
   TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
-    p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}${T["amb:"+m]?" · ambiance : "+esc(T["amb:"+m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>`).join(""))});
+    p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}${T["amb:"+m]?" · ambiance : "+esc(T["amb:"+m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>${x.ded?`<div class="da">🎤 ${esc(x.ded)}</div>`:""}`).join(""))});
   const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)p.push('<div class="dm">Plan B (secours)</div>'+pb.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)p.push('<div class="dm">À classer</div>'+nc.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)p.push('<div class="dm bad">🚫 À ne pas jouer</div><div class="bad">'+ev.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join("")+"</div>");
@@ -415,7 +420,7 @@ $("copyfiche").onclick=e=>{
   const stars=L.filter(x=>x.star&&x.moment!=="À éviter");
   if(stars.length)out.push("INCONTOURNABLES :\n"+stars.map(line).join("\n"));
   TM.forEach(m=>{const it=L.filter(x=>x.moment===m);if(!it.length)return;
-    out.push((T[m]?T[m]+" — ":"")+m+(T["amb:"+m]?" (ambiance : "+T["amb:"+m]+")":"")+" :\n"+it.map(x=>line(x)+(x.star?" ⭐":"")).join("\n"))});
+    out.push((T[m]?T[m]+" — ":"")+m+(T["amb:"+m]?" (ambiance : "+T["amb:"+m]+")":"")+" :\n"+it.map(x=>line(x)+(x.star?" ⭐":"")+(x.ded?"\n    🎤 Dédicace : "+x.ded:"")).join("\n"))});
   const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)out.push("PLAN B (si la salle ne suit pas) :\n"+pb.map(line).join("\n"));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)out.push("À classer :\n"+nc.map(line).join("\n"));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)out.push("À NE PAS JOUER :\n"+ev.map(line).join("\n"));
