@@ -67,6 +67,7 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 <button type="button" id="exdz" class="big" style="margin:8px 0 0">📤 Exporter pour Deezer (Titre - Artiste)</button>
 <input id="q" type="search" placeholder="🔎 Rechercher dans la liste">
 <button type="button" id="divbtn" class="big" hidden style="margin:6px 0"></button>
+<div id="newbar" class="card" hidden style="margin:6px 0"><span id="newtxt"></span> <button type="button" id="newsee">Voir</button> <button type="button" id="newok">Marquer comme vu</button></div>
 <button type="button" id="lockbtn" class="big" style="margin:6px 0"></button>
 <button type="button" id="likebtn" class="big" style="margin:6px 0">💞 Voir ce que vous aimez tous les deux</button>
 <button type="button" id="sortbtn" class="big" style="margin:6px 0">↕️ Trier par votes</button>
@@ -77,6 +78,13 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 <details id="chrono"><summary>🕒 Chronologie de la soirée</summary>
   <p class="small">Mets l'heure de début de chaque moment : on compare avec la durée de musique prévue.</p><div id="chrobody"></div></details>
 
+<details id="help"><summary>📖 Mode d'emploi (pour Valiha aussi)</summary><div class="small" style="line-height:1.5">
+<p><b>1.</b> En haut, choisis <b>Victor</b> ou <b>Valiha</b> : c'est ce qui sert pour voter.</p>
+<p><b>2.</b> Tape un titre → 🔎 Chercher → ▶️ écoute 30 s → ➕ Ajouter. Si tu as Shazam, colle simplement le texte partagé.</p>
+<p><b>3.</b> Sur chaque morceau : 👍😐👎 pour voter, ⬆️⬇️ pour l'ordre, ✏️ pour modifier (moment, dédicace, énergie), 🚫 pour « jamais ».</p>
+<p><b>4.</b> Le partage entre vous deux est automatique (🟢 en haut). Il faut saisir la même clé de partage sur les deux téléphones, dans « Partage ».</p>
+<p><b>5.</b> Pour l'avoir comme une app : menu du navigateur → « Ajouter à l'écran d'accueil ».</p>
+<p><b>6.</b> Quand c'est prêt : « Envoyer la fiche au DJ ».</p></div></details>
 <details id="bilan"><summary>📊 Bilan</summary><div id="bilanbody" class="small"></div><h2 style="margin:12px 0 4px">🧹 Doublons</h2><div id="dupbody"></div></details>
 <details id="trash"><summary>♻️ Supprimés (restaurer)</summary><div id="trashbody"></div></details>
 <details id="keyd"><summary>🎬 Moments clés pour le DJ</summary><p class="small">Heure + morceau pour chaque temps fort. Part dans la fiche DJ et le Jour J.</p><div id="keybody"></div></details>
@@ -105,7 +113,8 @@ const HDR={"Content-Type":"application/json","Accept":"application/json"};
 const bad=/remix|karaoke|karaoké|tribute|cover|instrumental|piano version|made famous|in the style/i;
 
 /* ---------- état ---------- */
-let onlyDiv=false,onlyTodo=false,onlyLike=false,sortVotes=false;
+let seenAt=ld("pm_seen",0);if(!seenAt){seenAt=Date.now();sv("pm_seen",seenAt)}
+let onlyNew=false,onlyDiv=false,onlyTodo=false,onlyLike=false,sortVotes=false;
 let S={songs:[],times:{},tUpd:0},code="",who="Les deux",editing=null,q="",net="off",syncing=false,dirty=false,delId=null;
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -302,6 +311,8 @@ sel.onchange=()=>{try{localStorage.setItem("pm_moment",sel.value)}catch(e){}};
 function paintWho(){document.querySelectorAll("#who button").forEach(b=>b.classList.toggle("on",b.dataset.w===who))}
 document.querySelectorAll("#who button").forEach(b=>b.onclick=()=>{who=b.dataset.w;sv("pm_who",who);paintWho();render()});paintWho();
 $("divbtn").onclick=()=>{onlyDiv=!onlyDiv;render()};
+$("newsee").onclick=()=>{onlyNew=!onlyNew;render()};
+$("newok").onclick=()=>{seenAt=now();sv("pm_seen",seenAt);onlyNew=false;render()};
 $("lockbtn").onclick=()=>change(()=>{if(!S.times)S.times={};if(S.times.lock)delete S.times.lock;else S.times.lock="1";S.tUpd=now()});
 $("likebtn").onclick=()=>{onlyLike=!onlyLike;render()};
 $("sortbtn").onclick=()=>{sortVotes=!sortVotes;render()};
@@ -335,6 +346,7 @@ function editHTML(x){
 const needVote=x=>(who==="Victor"||who==="Valiha")&&x.moment!=="À éviter"&&(x.v||{})[who]==null;
 const bothLike=x=>(x.v||{}).Victor===1&&(x.v||{}).Valiha===1;
 const vscore=x=>((x.v||{}).Victor||0)+((x.v||{}).Valiha||0)+(x.star?1:0);
+const isNew=x=>!x.del&&(x.upd||0)>seenAt&&x.by!==who;
 function render(){
   const L=live(),ok=L.filter(x=>x.status==="ok").length;
   $("count").textContent=L.length+" morceau"+(L.length>1?"x":"")+(L.length?" · "+ok+" validé"+(ok>1?"s":""):"");
@@ -346,6 +358,7 @@ function render(){
   const nd=L.filter(x=>voteInfo(x).div).length;
   const me=(who==="Victor"||who==="Valiha"),nv=me?L.filter(needVote).length:0;
   $("todobtn").hidden=!me||(!nv&&!onlyTodo);$("todobtn").textContent=onlyTodo?"Voir toute la liste":"🗳️ À voter pour "+who+" ("+nv+")";
+  {const n=L.filter(isNew).length;$("newbar").hidden=!n&&!onlyNew;$("newtxt").textContent="🆕 "+n+" morceau"+(n>1?"x":"")+" ajouté"+(n>1?"s":"")+" ou modifié"+(n>1?"s":"")+" par l'autre depuis ta dernière visite.";$("newsee").textContent=onlyNew?"Tout voir":"Voir"}
   const lk=!!(S.times||{}).lock;document.body.classList.toggle("locked",lk);
   $("lockbtn").textContent=lk?"🔓 Déverrouiller la liste (modifs, déplacements)":"🔒 Verrouiller la liste (évite les fausses manips)";
   $("likebtn").textContent=onlyLike?"Voir toute la liste":"💞 Voir ce que vous aimez tous les deux ("+L.filter(bothLike).length+")";
@@ -353,7 +366,7 @@ function render(){
   $("divbtn").hidden=!nd&&!onlyDiv;$("divbtn").textContent=onlyDiv?"Voir toute la liste":"⚠️ Voir les divergences ("+nd+")";
   let html="";
   MOMENTS.forEach(m=>{
-    let it=L.filter(x=>x.moment===m&&(!onlyDiv||voteInfo(x).div)&&(!onlyTodo||needVote(x))&&(!onlyLike||bothLike(x))&&(!q||((x.title||"")+" "+(x.artist||"")+" "+(x.note||"")).toLowerCase().includes(q)));
+    let it=L.filter(x=>x.moment===m&&(!onlyDiv||voteInfo(x).div)&&(!onlyTodo||needVote(x))&&(!onlyLike||bothLike(x))&&(!onlyNew||isNew(x))&&(!q||((x.title||"")+" "+(x.artist||"")+" "+(x.note||"")).toLowerCase().includes(q)));
     if(!it.length)return;
     if(sortVotes)it=[...it].sort((a,b)=>vscore(b)-vscore(a));
     const tot=fmtTot(it.reduce((a,x)=>a+(x.dur||0),0));
