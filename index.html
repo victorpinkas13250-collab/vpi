@@ -36,6 +36,7 @@ summary{cursor:pointer;font-size:16px}
 #dday .bad{color:var(--bad)}
 .big{width:100%;padding:14px;font-size:16px}
 .small{font-size:13px;color:var(--mute)}
+body.locked [data-a="up"],body.locked [data-a="dn"],body.locked [data-a="ed"],body.locked [data-a="ban"]{display:none}
 @media(prefers-color-scheme:dark){:root{--bg:#15171c;--card:#21242b;--line:#3a3f49;--mute:#9ba1ab;--ok:#5cc983;--bad:#ff6b61}body,button,input,select,textarea{color:#eee}.who button.on{background:#4a2f28}button.p{color:#fff}}
 @media print{#dday,#dday *{color:#000!important}body>*:not(#dday){display:none!important}#dday{position:static!important;overflow:visible!important;background:#fff!important}.noprint{display:none!important}}
 code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
@@ -66,6 +67,7 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 <button type="button" id="exdz" class="big" style="margin:8px 0 0">📤 Exporter pour Deezer (Titre - Artiste)</button>
 <input id="q" type="search" placeholder="🔎 Rechercher dans la liste">
 <button type="button" id="divbtn" class="big" hidden style="margin:6px 0"></button>
+<button type="button" id="lockbtn" class="big" style="margin:6px 0"></button>
 <button type="button" id="likebtn" class="big" style="margin:6px 0">💞 Voir ce que vous aimez tous les deux</button>
 <button type="button" id="sortbtn" class="big" style="margin:6px 0">↕️ Trier par votes</button>
 <button type="button" id="todobtn" class="big" hidden style="margin:6px 0"></button>
@@ -75,7 +77,7 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 <details id="chrono"><summary>🕒 Chronologie de la soirée</summary>
   <p class="small">Mets l'heure de début de chaque moment : on compare avec la durée de musique prévue.</p><div id="chrobody"></div></details>
 
-<details id="bilan"><summary>📊 Bilan</summary><div id="bilanbody" class="small"></div></details>
+<details id="bilan"><summary>📊 Bilan</summary><div id="bilanbody" class="small"></div><h2 style="margin:12px 0 4px">🧹 Doublons</h2><div id="dupbody"></div></details>
 <details id="trash"><summary>♻️ Supprimés (restaurer)</summary><div id="trashbody"></div></details>
 <details id="keyd"><summary>🎬 Moments clés pour le DJ</summary><p class="small">Heure + morceau pour chaque temps fort. Part dans la fiche DJ et le Jour J.</p><div id="keybody"></div></details>
 <details id="insp"><summary>🎲 M'inspirer</summary><p class="small">Idées classiques de mariage, hors ce que vous avez déjà. Touche + pour ajouter.</p><select id="inspm"></select><div id="inspbody"></div></details>
@@ -300,6 +302,7 @@ sel.onchange=()=>{try{localStorage.setItem("pm_moment",sel.value)}catch(e){}};
 function paintWho(){document.querySelectorAll("#who button").forEach(b=>b.classList.toggle("on",b.dataset.w===who))}
 document.querySelectorAll("#who button").forEach(b=>b.onclick=()=>{who=b.dataset.w;sv("pm_who",who);paintWho();render()});paintWho();
 $("divbtn").onclick=()=>{onlyDiv=!onlyDiv;render()};
+$("lockbtn").onclick=()=>change(()=>{if(!S.times)S.times={};if(S.times.lock)delete S.times.lock;else S.times.lock="1";S.tUpd=now()});
 $("likebtn").onclick=()=>{onlyLike=!onlyLike;render()};
 $("sortbtn").onclick=()=>{sortVotes=!sortVotes;render()};
 $("todobtn").onclick=()=>{onlyTodo=!onlyTodo;render()};
@@ -338,9 +341,13 @@ function render(){
   const d=Math.ceil((new Date(2027,3,30)-new Date(new Date().toDateString()))/86400000);
   const fait=TM.filter(m=>L.some(x=>x.moment===m)).length;
   $("cd").textContent="🗓️ "+(d>0?"J-"+d+" · 30 avril 2027":d===0?"C'est aujourd'hui !":"Mariage passé")+" · "+fait+"/"+TM.length+" moments remplis";
+  {const T=S.times||{},td=new Date(new Date().toDateString()),nx=DEAD.find(([id])=>!T["chk:"+id]);
+   if(nx){const dt=new Date(2027,3,30-nx[2]),j=Math.ceil((dt-td)/86400000);$("cd").textContent+=" · ⏳ "+nx[1]+(j<0?" (en retard de "+(-j)+" j)":j===0?" (aujourd'hui)":" (dans "+j+" j)")}}
   const nd=L.filter(x=>voteInfo(x).div).length;
   const me=(who==="Victor"||who==="Valiha"),nv=me?L.filter(needVote).length:0;
   $("todobtn").hidden=!me||(!nv&&!onlyTodo);$("todobtn").textContent=onlyTodo?"Voir toute la liste":"🗳️ À voter pour "+who+" ("+nv+")";
+  const lk=!!(S.times||{}).lock;document.body.classList.toggle("locked",lk);
+  $("lockbtn").textContent=lk?"🔓 Déverrouiller la liste (modifs, déplacements)":"🔒 Verrouiller la liste (évite les fausses manips)";
   $("likebtn").textContent=onlyLike?"Voir toute la liste":"💞 Voir ce que vous aimez tous les deux ("+L.filter(bothLike).length+")";
   $("sortbtn").textContent=sortVotes?"↕️ Revenir à mon ordre":"↕️ Trier par votes";
   $("divbtn").hidden=!nd&&!onlyDiv;$("divbtn").textContent=onlyDiv?"Voir toute la liste":"⚠️ Voir les divergences ("+nd+")";
@@ -446,9 +453,16 @@ function paintMore(){
   const vv=n=>L.filter(x=>x.moment!=="À éviter"&&(x.v||{})[n]!=null).length,base=L.filter(x=>x.moment!=="À éviter").length;
   const vide=TM.filter(m=>!L.some(x=>x.moment===m));
   $("bilanbody").innerHTML=`<div>🎵 ${base} morceaux · ${Math.floor(tot/3600)} h ${String(Math.round(tot%3600/60)).padStart(2,"0")} de musique connue</div><div>✅ ${L.filter(x=>x.status==="ok").length} validés · ⭐ ${L.filter(x=>x.star).length} incontournables · 🚫 ${L.length-base} à éviter</div><div>🗳️ Votes : Victor ${vv("Victor")}/${base} · Valiha ${vv("Valiha")}/${base}</div><div>⚠️ ${L.filter(x=>voteInfo(x).div).length} divergence(s)</div><div>${vide.length?"📭 Moments vides : "+vide.map(esc).join(", "):"🎉 Tous les moments ont au moins un morceau"}</div>`;
+  const seen=new Map(),dups=[];
+  L.forEach(x=>{const k=norm(x.title);if(!k)return;const o=(seen.get(k)||[]).find(y=>{const a=norm(x.artist),b=norm(y.artist);return !a||!b||a===b||a.includes(b)||b.includes(a)});if(o)dups.push([o,x]);else{if(!seen.has(k))seen.set(k,[]);seen.get(k).push(x)}});
+  $("dupbody").innerHTML=dups.map(([a,b])=>`<div class="crow" style="margin:6px 0"><span style="flex:1">${esc(b.title)} <span class="small">${esc(b.artist||"")} · ${esc(b.moment)} (déjà en ${esc(a.moment)})</span></span><button type="button" data-dd="${esc(b.id)}">Retirer</button></div>`).join("")||'<div class="small">Aucun doublon.</div>';
   const dl=S.songs.filter(x=>x.del);
   $("trashbody").innerHTML=dl.map(x=>`<div class="crow" style="margin:6px 0"><span style="flex:1">${esc(x.title)} <span class="small">${esc(x.artist||"")}</span></span><button type="button" data-rs="${esc(x.id)}">Restaurer</button></div>`).join("")||'<div class="small">Rien de supprimé.</div>';
 }
+document.addEventListener("click",e=>{
+  const b=e.target.closest&&e.target.closest("[data-dd]");if(!b)return;
+  const x=S.songs.find(s=>s.id===b.dataset.dd);if(x)change(()=>{x.del=true;touch(x)});
+});
 document.addEventListener("click",e=>{
   const b=e.target.closest&&e.target.closest("[data-rs]");if(!b)return;
   const x=S.songs.find(s=>s.id===b.dataset.rs);if(x)change(()=>{x.del=false;touch(x)});
@@ -456,7 +470,7 @@ document.addEventListener("click",e=>{
 function paintExtras(){paintMore();
   const T=S.times||{},L=live();
   const act=document.activeElement;if(act&&act.closest&&act.closest("#keybody,#banw"))return;
-  $("keybody").innerHTML=KEYS.map(([id,l])=>`<div class="crow" style="flex-wrap:wrap"><b style="width:100%">${esc(l)}</b><input type="time" data-k="${id}:t" value="${esc(T["k:"+id+":t"]||"")}"><input data-k="${id}:s" placeholder="Morceau" value="${esc(T["k:"+id+":s"]||"")}" style="flex:1"></div>`).join("");
+  $("keybody").innerHTML='<b>Consignes générales au DJ</b><textarea data-k="note" rows="3" placeholder="ex. volume bas pendant le dîner, micro pour les discours, pas de rappel après 2 h">'+esc(T["k:note"]||"")+'</textarea>'+KEYS.map(([id,l])=>`<div class="crow" style="flex-wrap:wrap"><b style="width:100%">${esc(l)}</b><input type="time" data-k="${id}:t" value="${esc(T["k:"+id+":t"]||"")}"><input data-k="${id}:s" placeholder="Morceau" value="${esc(T["k:"+id+":s"]||"")}" style="flex:1"></div>`).join("");
   const im=$("inspm");if(!im.options.length)im.innerHTML=Object.keys(SUG).map(m=>`<option>${esc(m)}</option>`).join("");
   $("inspbody").innerHTML=sugList(im.value).map(([t,a])=>`<div class="crow" style="margin:6px 0"><span style="flex:1">${esc(t)} <span class="small">${esc(a)}</span></span><button type="button" data-sg="${esc(t)}|${esc(a)}">+</button></div>`).join("")||'<div class="small">Plus d\'idée ici : vous avez tout !</div>';
   // énergie
@@ -510,6 +524,7 @@ function paintDDay(){
     p.push(`<div class="dm">${esc(m)}${T[m]?" · "+esc(T[m]):""}${T["amb:"+m]?" · ambiance : "+esc(T["amb:"+m]):""}</div>`+it.map(x=>`<div class="ds">${x.star?"⭐ ":""}${esc(x.title)}</div><div class="da">${esc(x.artist||"")}${x.note?" — "+esc(x.note):""}</div>${x.ded?`<div class="da">🎤 ${esc(x.ded)}</div>`:""}`).join(""))});
   const kl=KEYS.filter(([id])=>T["k:"+id+":t"]||T["k:"+id+":s"]);
   if(kl.length)p.unshift('<div class="dm">Moments clés</div>'+kl.map(([id,l])=>`<div class="ds">${esc(T["k:"+id+":t"]||"--:--")} · ${esc(l)}</div><div class="da">${esc(T["k:"+id+":s"]||"")}</div>`).join(""));
+  if(T["k:note"])p.unshift('<div class="dm">Consignes</div><div class="da" style="white-space:pre-wrap">'+esc(T["k:note"])+'</div>');
   const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)p.push('<div class="dm">Plan B (secours)</div>'+pb.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)p.push('<div class="dm">À classer</div>'+nc.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join(""));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)p.push('<div class="dm bad">🚫 À ne pas jouer</div><div class="bad">'+ev.map(x=>`<div class="ds">${esc(x.title)}</div><div class="da">${esc(x.artist||"")}</div>`).join("")+"</div>");
@@ -528,6 +543,7 @@ function ficheText(){
     out.push((T[m]?T[m]+" — ":"")+m+(T["amb:"+m]?" (ambiance : "+T["amb:"+m]+")":"")+" :\n"+it.map(x=>line(x)+(x.star?" ⭐":"")+(x.ded?"\n    🎤 Dédicace : "+x.ded:"")).join("\n"))});
   const kl=KEYS.filter(([id])=>T["k:"+id+":t"]||T["k:"+id+":s"]).map(([id,l])=>"- "+(T["k:"+id+":t"]||"--:--")+" "+l+(T["k:"+id+":s"]?" : "+T["k:"+id+":s"]:""));
   if(kl.length)out.unshift("MOMENTS CLÉS :\n"+kl.join("\n"));
+  if(T["k:note"])out.unshift("CONSIGNES :\n"+T["k:note"]);
   const pb=L.filter(x=>x.moment==="Plan B (secours)");if(pb.length)out.push("PLAN B (si la salle ne suit pas) :\n"+pb.map(line).join("\n"));
   const nc=L.filter(x=>x.moment==="À classer");if(nc.length)out.push("À classer :\n"+nc.map(line).join("\n"));
   const ev=L.filter(x=>x.moment==="À éviter");if(ev.length)out.push("À NE PAS JOUER :\n"+ev.map(line).join("\n"));
