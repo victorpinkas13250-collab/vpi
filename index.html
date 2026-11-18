@@ -36,7 +36,8 @@ summary{cursor:pointer;font-size:16px}
 #dday .bad{color:var(--bad)}
 .big{width:100%;padding:14px;font-size:16px}
 .small{font-size:13px;color:var(--mute)}
-@media print{body>*:not(#dday){display:none!important}#dday{position:static!important;overflow:visible!important;background:#fff!important}.noprint{display:none!important}}
+@media(prefers-color-scheme:dark){:root{--bg:#15171c;--card:#21242b;--line:#3a3f49;--mute:#9ba1ab;--ok:#5cc983;--bad:#ff6b61}body,button,input,select,textarea{color:#eee}.who button.on{background:#4a2f28}button.p{color:#fff}}
+@media print{#dday,#dday *{color:#000!important}body>*:not(#dday){display:none!important}#dday{position:static!important;overflow:visible!important;background:#fff!important}.noprint{display:none!important}}
 code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 </style></head><body>
 
@@ -61,9 +62,12 @@ code{background:#eee;padding:2px 5px;border-radius:6px;overflow-wrap:anywhere}
 
 <button type="button" id="sharedj" class="big" style="margin:0 0 8px">📲 Envoyer la fiche au DJ (WhatsApp, mail…)</button>
 <div class="row"><button type="button" id="ddbtn">📋 Mode Jour J</button><button type="button" id="copyfiche">Copier pour la fiche DJ</button></div>
+<button type="button" id="excsv" class="big" style="margin:8px 0 0">📑 Copier en tableau (Excel / Sheets)</button>
 <button type="button" id="exdz" class="big" style="margin:8px 0 0">📤 Exporter pour Deezer (Titre - Artiste)</button>
 <input id="q" type="search" placeholder="🔎 Rechercher dans la liste">
 <button type="button" id="divbtn" class="big" hidden style="margin:6px 0"></button>
+<button type="button" id="likebtn" class="big" style="margin:6px 0">💞 Voir ce que vous aimez tous les deux</button>
+<button type="button" id="sortbtn" class="big" style="margin:6px 0">↕️ Trier par votes</button>
 <button type="button" id="todobtn" class="big" hidden style="margin:6px 0"></button>
 <div id="seqbar" class="small" hidden style="margin:6px 0"><span id="seqtxt"></span> <button type="button" id="seqstop">⏹ Stop</button> <button type="button" id="seqnext">⏭ Suivant</button></div>
 <div id="list"></div>
@@ -99,7 +103,7 @@ const HDR={"Content-Type":"application/json","Accept":"application/json"};
 const bad=/remix|karaoke|karaoké|tribute|cover|instrumental|piano version|made famous|in the style/i;
 
 /* ---------- état ---------- */
-let onlyDiv=false,onlyTodo=false;
+let onlyDiv=false,onlyTodo=false,onlyLike=false,sortVotes=false;
 let S={songs:[],times:{},tUpd:0},code="",who="Les deux",editing=null,q="",net="off",syncing=false,dirty=false,delId=null;
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -296,6 +300,8 @@ sel.onchange=()=>{try{localStorage.setItem("pm_moment",sel.value)}catch(e){}};
 function paintWho(){document.querySelectorAll("#who button").forEach(b=>b.classList.toggle("on",b.dataset.w===who))}
 document.querySelectorAll("#who button").forEach(b=>b.onclick=()=>{who=b.dataset.w;sv("pm_who",who);paintWho();render()});paintWho();
 $("divbtn").onclick=()=>{onlyDiv=!onlyDiv;render()};
+$("likebtn").onclick=()=>{onlyLike=!onlyLike;render()};
+$("sortbtn").onclick=()=>{sortVotes=!sortVotes;render()};
 $("todobtn").onclick=()=>{onlyTodo=!onlyTodo;render()};
 $("q").oninput=()=>{q=$("q").value.trim().toLowerCase();render()};
 
@@ -314,7 +320,7 @@ function card(x){
   const heart=(x.lv&&x.ln)?"💞 ":x.lv?"💙 ":x.ln?"💗 ":"";
   const dz="https://www.deezer.com/search/"+encodeURIComponent((x.title+" "+(x.artist||"")).trim());
   return `<div class="song${x.status==="ok"?" okk":""}" data-id="${esc(x.id)}"><div class="t">${x.star?"⭐ ":""}${heart}${esc(x.title)}${x.by?`<span class="tag">${esc(x.by)}</span>`:""}</div><div class="a">${esc(x.artist||"")}${x.dur?" · "+fmtDur(x.dur):""}</div>${x.note?`<span class="nt">${esc(x.note)}</span>`:""}${x.ded?`<div class="small">🎤 ${esc(x.ded)}</div>`:""}${(x.en||x.gen)?`<div class="small">${x.en?["","🌙","🙂","🔥"][x.en]:""} ${esc(x.gen||"")}</div>`:""}${banHit(x)&&x.moment!=="À éviter"?`<div class="small" style="color:var(--bad)">🔇 contient un mot à éviter</div>`:""}
-  <div class="small" style="margin-top:6px">${voteInfo(x).line}</div><div class="acts"><button data-a="vote" data-val="1" data-id="${esc(x.id)}">👍</button><button data-a="vote" data-val="0" data-id="${esc(x.id)}">😐</button><button data-a="vote" data-val="-1" data-id="${esc(x.id)}">👎</button><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="up" data-id="${esc(x.id)}">⬆️</button><button data-a="dn" data-id="${esc(x.id)}">⬇️</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><button data-a="ban" data-id="${esc(x.id)}">🚫</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a></div></div>`;
+  <div class="small" style="margin-top:6px">${voteInfo(x).line}</div><div class="acts"><button data-a="vote" data-val="1" data-id="${esc(x.id)}">👍</button><button data-a="vote" data-val="0" data-id="${esc(x.id)}">😐</button><button data-a="vote" data-val="-1" data-id="${esc(x.id)}">👎</button><button data-a="${x.prev?"play":"find"}" data-id="${esc(x.id)}">${x.prev?"▶️ 30 s":"🔎 Extrait"}</button><button data-a="ok" data-id="${esc(x.id)}">${x.status==="ok"?"✅":"☑️"}</button><button data-a="up" data-id="${esc(x.id)}">⬆️</button><button data-a="dn" data-id="${esc(x.id)}">⬇️</button><button data-a="ed" data-id="${esc(x.id)}">✏️</button><button data-a="ban" data-id="${esc(x.id)}">🚫</button><a href="${esc(x.link||dz)}" target="_blank" rel="noopener">🎧</a><a href="${esc("https://www.youtube.com/results?search_query="+encodeURIComponent((x.title+" "+(x.artist||"")).trim()))}" target="_blank" rel="noopener">▶️YT</a><a href="${esc("https://music.amazon.fr/search/"+encodeURIComponent((x.title+" "+(x.artist||"")).trim()))}" target="_blank" rel="noopener">🅰️</a></div></div>`;
 }
 function editHTML(x){
   return `<div class="song" data-id="${esc(x.id)}"><input id="e_t" value="${esc(x.title)}" placeholder="Titre"><input id="e_a" value="${esc(x.artist||"")}" placeholder="Artiste"><input id="e_l" value="${esc(x.link||"")}" placeholder="Lien (facultatif)"><input id="e_n" value="${esc(x.note||"")}" placeholder="Note (ex. version live)"><input id="e_d" value="${esc(x.ded||"")}" placeholder="🎤 Dédicace / anecdote (annoncée par le DJ)">
@@ -324,6 +330,8 @@ function editHTML(x){
   <div class="acts"><button class="p" data-a="sv" data-id="${esc(x.id)}">Enregistrer</button><button data-a="cx">Annuler</button><button data-a="del" data-id="${esc(x.id)}">${delId===x.id?"Confirmer la suppression":"🗑 Supprimer"}</button></div></div>`;
 }
 const needVote=x=>(who==="Victor"||who==="Valiha")&&x.moment!=="À éviter"&&(x.v||{})[who]==null;
+const bothLike=x=>(x.v||{}).Victor===1&&(x.v||{}).Valiha===1;
+const vscore=x=>((x.v||{}).Victor||0)+((x.v||{}).Valiha||0)+(x.star?1:0);
 function render(){
   const L=live(),ok=L.filter(x=>x.status==="ok").length;
   $("count").textContent=L.length+" morceau"+(L.length>1?"x":"")+(L.length?" · "+ok+" validé"+(ok>1?"s":""):"");
@@ -333,11 +341,14 @@ function render(){
   const nd=L.filter(x=>voteInfo(x).div).length;
   const me=(who==="Victor"||who==="Valiha"),nv=me?L.filter(needVote).length:0;
   $("todobtn").hidden=!me||(!nv&&!onlyTodo);$("todobtn").textContent=onlyTodo?"Voir toute la liste":"🗳️ À voter pour "+who+" ("+nv+")";
+  $("likebtn").textContent=onlyLike?"Voir toute la liste":"💞 Voir ce que vous aimez tous les deux ("+L.filter(bothLike).length+")";
+  $("sortbtn").textContent=sortVotes?"↕️ Revenir à mon ordre":"↕️ Trier par votes";
   $("divbtn").hidden=!nd&&!onlyDiv;$("divbtn").textContent=onlyDiv?"Voir toute la liste":"⚠️ Voir les divergences ("+nd+")";
   let html="";
   MOMENTS.forEach(m=>{
-    const it=L.filter(x=>x.moment===m&&(!onlyDiv||voteInfo(x).div)&&(!onlyTodo||needVote(x))&&(!q||((x.title||"")+" "+(x.artist||"")+" "+(x.note||"")).toLowerCase().includes(q)));
+    let it=L.filter(x=>x.moment===m&&(!onlyDiv||voteInfo(x).div)&&(!onlyTodo||needVote(x))&&(!onlyLike||bothLike(x))&&(!q||((x.title||"")+" "+(x.artist||"")+" "+(x.note||"")).toLowerCase().includes(q)));
     if(!it.length)return;
+    if(sortVotes)it=[...it].sort((a,b)=>vscore(b)-vscore(a));
     const tot=fmtTot(it.reduce((a,x)=>a+(x.dur||0),0));
     html+=`<h2><span>${esc(m)}${it.some(x=>x.prev)?` <button type="button" data-pm="${esc(m)}" style="font-size:12px;padding:2px 8px">▶️ enchaîner</button>`:""}</span><span>${it.length}${tot?" · "+tot:""}</span></h2>`+it.map(card).join("");
   });
@@ -527,6 +538,12 @@ $("sharedj").onclick=async e=>{
   const t="Playlist mariage Victor & Valiha — 30 avril 2027\n\n"+ficheText();
   if(navigator.share){try{await navigator.share({title:"Fiche DJ mariage",text:t});return}catch(err){if(err&&err.name==="AbortError")return}}
   copyTxt(t,e.target,"📲 Envoyer la fiche au DJ (WhatsApp, mail…)");
+};
+$("excsv").onclick=e=>{
+  const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"',T=S.times||{};
+  const rows=[["Moment","Heure","Titre","Artiste","Durée","Incontournable","Victor","Valiha","Énergie","Époque","Dédicace","Note","Validé"].map(q).join("\t")];
+  [...MOMENTS].forEach(m=>live().filter(x=>x.moment===m).forEach(x=>rows.push([m,T[m]||"",x.title,x.artist,x.dur?fmtDur(x.dur):"",x.star?"oui":"",EM((x.v||{}).Victor),EM((x.v||{}).Valiha),["","calme","moyen","dansant"][x.en||0],x.gen||"",x.ded||"",x.note||"",x.status==="ok"?"oui":""].map(q).join("\t"))));
+  copyTxt(rows.join("\n"),e.target,"📑 Copier en tableau (Excel / Sheets)");
 };
 $("exdz").onclick=e=>{
   const t=live().filter(x=>x.moment!=="À éviter").map(x=>x.title+(x.artist?" - "+x.artist:"")).join("\n");
